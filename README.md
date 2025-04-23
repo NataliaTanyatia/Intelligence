@@ -21,7 +21,9 @@ This document contains foundational resources and development specifications for
 
 - **Logic Core**: Higher-order logic engine inspired by "Logical Manifesto".
 - **Geometric Engine**: Geometric computation via concepts from "Optimal Prime".
-- **Unified Physics Module**: Fractal modeling and dynamics from "Grand Unified Theory".
+- **Unified Physics Module**: Fractal modeling and dynamics from "Grand Unified Theory". Supports multimodal, GPU and HSA(Heterogeneous System Architecture) implementations for enhanced cognition and file processing/generation when tools e.g. real-time voice/video, and GPUs are available to the web app to evolve with.
+
+
 
 ### Learning & Evolution Capability
 
@@ -48,7 +50,7 @@ This document contains foundational resources and development specifications for
 ### Future Integration
 
 - **AI Expansion**: Intelligence to be optionally bootstrapped with Google Cloud AI via Gemini.
-- **Non-dependence**: Gemini is an enhancer, not a dependency.
+- **Non-dependence**: Gemini is an educator, not a dependency.
 
 ---
 
