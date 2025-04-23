@@ -50,7 +50,7 @@ This document contains foundational resources and development specifications for
 ### Future Integration
 
 - **AI Expansion**: Intelligence to be optionally bootstrapped with Google Cloud AI via Gemini.
-- **Non-dependence**: Gemini is an educator, not a dependency.
+- **Non-dependence**: Gemini is an edification, not a dependency.
 
 ---
 
