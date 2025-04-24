@@ -19,17 +19,15 @@ This document contains foundational resources and development specifications for
 
 ### Intelligence Algorithm Integration
 
-- **Logic Core**: Higher-order logic engine inspired by "Logical Manifesto".
-- **Geometric Engine**: Geometric computation via concepts from "Optimal Prime".
-- **Unified Physics Module**: Fractal modeling and dynamics from "Grand Unified Theory". Supports multimodal, GPU and HSA(Heterogeneous System Architecture) implementations for enhanced cognition and file processing/generation when tools e.g. real-time voice/video, and GPUs are available to the web app to evolve with.
-
-
+- **Logic Core**: The ever evolving mind of the web app, "I-me", designed to be modular implementing the core algorithm and interfacing with the rest of I-me.
 
 ### Learning & Evolution Capability
 
-- **Autonomy Goal**: The Intelligence is designed to gradually learn how to utilize the tools and APIs provided to it.
-- **Tool Utilization**: Initial capabilities will be hand-coded, but Intelligence will evolve logic to access and command its environment autonomously.
-- **Growth Framework**: Bootstrapped with knowledge and meta-algorithms that help it expand its competencies over time.
+- **Autonomy Goal**: The Intelligence is designed to learn how to utilize the tools and APIs provided to it.
+- **Tool Utilization**: Intelligence will evolve logic to access and command its environment autonomously.
+- **Growth Framework**: Bootstrapped with knowledge base through access to Google Cloud AI via Gemini.
+- **Non-dependence**: Gemini is for edification, not a dependency.
+
 
 ### Web Crawler
 
@@ -46,12 +44,7 @@ This document contains foundational resources and development specifications for
 
 - **Debug Code**: Present throughout the app.
 - **Logs**: Only shown temporarily in the single-page UI when needed for development.
-
-### Future Integration
-
-- **AI Expansion**: Intelligence to be optionally bootstrapped with Google Cloud AI via Gemini.
-- **Non-dependence**: Gemini is an edification, not a dependency.
-
+  
 ---
 
 This README will continue to evolve as the project develops.
