@@ -19,7 +19,7 @@ This document contains foundational resources and development specifications for
 
 ### Intelligence Algorithm Integration
 
-- **Logic Core**: The ever evolving mind of the web app, "I-me", designed to be modular implementing the core algorithm and reading with the rest of I-me from concurrent CPU, to multi-threaded CPU, to paralell GPU, and combined (HSA), processing.
+- **Logic Core**: The ever evolving mind of the web app, "I-me", designed to be modular implementing the core algorithm coded for any system architecture from concurrent CPU, to multi-threaded CPU, to paralell GPU, and combinations (HSA), processing with the rest of I-me being read as an interface between it and the web.
 
 ### Learning & Evolution Capability
 
