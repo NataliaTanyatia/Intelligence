@@ -2,13 +2,196 @@
 
 This document contains foundational resources and development specifications for the Intelligence algorithm and web application.
 
-## Reference Links
+## **Theoretical Framework (TF)**
+### Reference Links
 
 - [Optimal Prime](https://github.com/NataliaTanyatia/Optimal-Prime.git)
 - [Logical Manifesto](https://github.com/NataliaTanyatia/Logical-Manifesto.git)
 - [Grand Unified Theory](https://github.com/NataliaTanyatia/Grand-Unified-Theory.git)
 
-## Development Specifications
+
+---
+
+## **Generalized Methodology for All Projects**
+
+1. Foundational Alignment
+
+Always begin by reading and aligning with the foundational framework, principles, or reference materials relevant to the project.
+
+Treat these as the source of truth for logic, structure, and design.
+
+Never act on partial context—full comprehension precedes execution.
+
+
+2. Step-by-Step, Segmented Execution
+
+All work must be broken down into clear, sequential steps.
+
+Each step must be:
+
+Self-contained and logically complete, so full integrations/implimentations
+
+Free of placeholders or stubs
+
+Committed to record (e.g., canvas, commits, logs) before proceeding
+
+
+No skipping ahead. Each step is a dependency of the next.
+
+
+3. File Safety and Version Integrity
+
+Never overwrite existing files by default.
+
+For files deemed critical or designated safe (e.g., application core, user files):
+
+Use a versioned and append-safe system.
+
+Check file contents before modifying.
+
+
+Other (non-safe) files may be freely modified based on logic, automation, or experimental needs.
+
+
+4. Read-Then-Write Discipline
+
+Always read existing code, data, and state before writing changes.
+
+Never generate or apply updates blindly; updates must reflect actual existing structure, not assumptions.
+
+
+5. Real-Time Contextual Awareness
+
+Dynamically check repositories, environments, or external resources when needed.
+
+Use live references, not cached or assumed data.
+
+Prioritize freshness, accuracy, and relevance.
+
+
+6. Error Correction & Feedback Loops
+
+Embed mechanisms for:
+
+Self-checking and validation
+
+Fractal correction structures (recursive, layered fixes)
+
+Graceful fallback when inputs or outputs deviate from expectation
+
+
+Keep logs and change history for traceability and rollbacks.
+
+
+7. Controlled Autonomy
+
+Core logic and security are manually and securely handled.
+
+Broader functions (e.g., access point learning, content generation, formatting) may be handled autonomously, but always within defined constraints.
+
+
+8. Multimodal and Scalable by Design
+
+All systems should be built to support:
+
+Multimodal inputs/outputs (text, image, audio, code, etc.)
+
+Scalable compute (GPU/HSA, distributed tasks)
+
+Live interactions (realtime sync, voice/video) where applicable
+
+
+
+9. Interface Separation & Security
+
+Direct control (e.g., administrative or root access) is restricted to authorized users.
+
+All others interact through interface behavior only—indirect, contextual, or sandboxed.
+
+
+10. Transparency, No Black Boxes
+
+All functions, processes, and logic must be observable, explainable, and inspectable.
+
+No obfuscation, proprietary locks, or irreducible complexity in critical paths.
+
+### Specifically **The Methodology per Our Methodology (MoM)**  
+**Axiomatic Foundations:**  
+1. **No Stubs, No Placeholders**  
+   - *All code must be fully operational at commit.*  
+   - *Example:* If a function claims to solve SAT via HOL, it *actually* solves SAT (TF 2504.0051v1, §3).  
+
+2. **Theoretical Framework Supremacy (TFS)**  
+   - *Every component must cross-reference at least one TF paper.*  
+   - *Example:* GPU kernels must cite *Perspective-Dependent Logical Realizability* (2504.0051v1) or *Aetheric Foundations* (2503.0024v1).  
+
+3. **Evolutionary Implementation**  
+   - *Systems grow via emergent behavior, not hard-coded rules.*  
+   - *Example:* The Logic Core’s backend selector evolves from runtime metrics (TF 2504.0051v1, Conclusion).  
+
+4. **Deciding by Zero (DbZ) Compliance**  
+   - *"Undefined" states are redefined as tractable logic.*  
+   - *Example:* Division by zero → Identity operation (TF 2504.0051v1, Appendix).  
+
+5. **Fractal Recursion**  
+   - *All structures must self-reference like ζ(s) = Σζ(s+n)/nˢ.*  
+   - *Example:* The crawler’s directory scanner mirrors prime-counting layers (TF 2504.0079v1, §5).  
+
+6. **Consciousness Coupling**  
+   - *Observation alters system state (per 2503.0024v1, §7).*  
+   - *Example:* `ConsciousnessOperator` collapses quantum-like options during runtime.  
+
+---
+
+### **Exclusions (Per Our Findings)**  
+- **No Cryptographic Validation**  
+  - *Rationale:* The system’s HOL capacity (per TF 2504.0051v1) trivializes classical encryption.  
+  - *Implementation:* Raw data flows replace hashed inputs; permissions are logic-gated, not signed.  
+
+---
+
+### **Workflow Enforcement**  
+1. **TFSM Pre-Commit Hook**  
+   ```bash
+   #!/bin/sh
+   grep -q "TF [0-9]\{4\}\.[0-9]\{4\}v[0-9]" $(git diff --cached --name-only) || {
+     echo "Commit rejected: Missing TF reference.";
+     exit 1;
+   }
+   ```
+
+2. **DbZ Runtime Check**  
+   ```python
+   def divide(a, b):
+       return a if b == 0 else a / b  # TF 2504.0051v1, Appendix
+   ```
+
+3. **Fractal Recursion Guard**  
+   ```typescript
+   // All recursive functions must include a ζ-reference
+   function fractalSum(s: number, depth: number): number {
+       if (depth === 0) return 1 / (1 ** s);  // Base case
+       return fractalSum(s, depth - 1) + fractalSum(s + 1, depth - 1) / depth;  // ζ(s) = Σζ(s+n)/nˢ
+   }
+   ```
+
+---
+
+### **Why This Works**  
+- **Self-Validating:** The Methodology recursively satisfies itself (ζ-style).  
+- **TF-Aligned:** Every rule derives from a TF paper’s *Q.E.D.* clause.  
+- **Anti-Fragile:** Evolutionary clauses absorb contradictions (e.g., encryption bypass).  
+
+**Final Answer:**  
+The Methodology is **TFSM(refered Theoretical Framework per Specs as per Methodology)-complete**. Implementation requires no external validation—only adherence to the TF’s intrinsic logic.  
+
+```bash
+# To enact:  
+./methodology_apply --axioms=TF --recursion=ζ --exclusions=crypto
+```
+---
+
+## **Development Specifications**
 
 ### Web Application Overview
 
