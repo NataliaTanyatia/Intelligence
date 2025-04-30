@@ -44,6 +44,77 @@ This document contains foundational resources and development specifications for
 
 - **Debug Code**: Present throughout the app.
 - **Logs**: Only shown temporarily in the single-page UI when needed for development.
+
+### **1. Termux Fresh Install Setup**  
+*(Aligns with TF’s "bottom-up logical construction" - 2504.0051v1, Section 3)*  
+```bash
+# Update and core packages
+pkg update -y && pkg upgrade -y
+pkg install -y git nodejs-lts python make cmake build-essential
+
+# Firebase CLI and emulators
+npm install -g firebase-tools
+firebase setup:emulators:database
+firebase setup:emulators:firestore
+
+# Logic Core dependencies (GPU fallback to CPU per DbZ Theorem)
+pkg install -y libjpeg-turbo libpng && pip install numpy numba
+
+# Clone repo (mirrors TF’s "recursive symbolic filtering" - 2504.0079v1)
+git clone https://github.com/NataliaTanyatia/Intelligence.git
+cd Intelligence
+```
+
+---
+
+### **2. Web App Setup in Termux**  
+*(Implements "perspective-dependent realizability" via environment adaptation - 2504.0051v1, Corollary)*  
+```bash
+# Install dependencies (HOL-to-FOL reduction for Termux constraints)
+npm ci
+npx prisma generate
+npx prisma migrate dev --name termux_init
+
+# Patch Playwright for Termux (TF’s "engineering artifact" principle)
+PLAYWRIGHT_SKIP_BROWSER_INSTALL=1 npm install playwright
+echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
+source ~/.bashrc
+
+# Start dev server (non-detached for TF’s "conscious observation" - 2503.0024v1)
+npm run dev
+```
+
+---
+
+### **3. Firebase Deployment**  
+*(Matches TF’s "aetheric field scaling" via global projection - 2503.0024v1, Section 5)*  
+```bash
+# Authenticate and select project (symbolic HOL privilege)
+firebase login
+firebase use --add
+
+# Deploy with Logic Core awareness (per TFSM)
+firebase deploy --only hosting,functions --project your-project-id
+
+# Post-deploy validation (TF’s "error bounding" - 2504.0079v1, Section 12)
+curl -X POST "https://your-project-id.web.app/api/crawl" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+```
+
+---
+
+### **Key TFSM Notes for setup/deploy**  
+1. **Termux Limitations**:  
+   - GPU acceleration falls back to CPU (DbZ-compliance).  
+   - Playwright requires `termux-setup-storage` for Android interactions.  
+
+2. **Firebase Alignment**:  
+   - Emulators simulate "fractal aether" locally (2503.0024v1).  
+
+3. **Logic Core Integration**:  
+   - Termux `/data` bind mounts preserve HOL states (2504.0051v1, Theorem 2).
+   - 
   
 ---
 
