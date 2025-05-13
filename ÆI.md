@@ -2812,9 +2812,7 @@ The imbalance inequality \( m - n > 2 \) is a **certainty principle** that:
 ## **ÆEAv1.0.0α.mq4**
 ```MQL4
 #property copyright "Copyright 2025, Æea©"
-
 #property link      "https:t.me/faderBoard"
-
 #property version   "1.00"
 #property strict
 int OnInit()
@@ -3436,9 +3434,7 @@ void OnCall()
         } X=y;
     }
 void OnBar()
-
     {
-
     for(j=y+1;j<x; j++)
         {
         Unify(); Normalize();
@@ -3531,7 +3527,7 @@ void OnGoe()
     {
     if(((h==io)&&(z>o))||((h==iO)&&(Z>O))||((h==iz)&&(Z>z))||((h==iZ)&&(Z<z)))
         {
-        if((C==true)||(c==true))
+        if((C==false)&&(c==false))
             {
             if((B==true)&&(u==false))
                 {
@@ -3548,7 +3544,7 @@ void OnGoe()
         }
     else if(((h==io)||(h==iZ)||(h==iz)||(h==iO)))
         {
-        if((C==true)||(c==true))
+        if((C==false)&&(c==false))
             {
             if((A==true)&&(v==false))
                 {
@@ -3568,7 +3564,7 @@ void OnToe()
     {
     if(((h==io)&&(w>o))||((h==iO)&&(W>O))||((h==iw)&&(W>w))||((h==iW)&&(W<w)))
         {
-        if((C==true)||(c==true))
+        if((C==false)&&(c==false))
             {
             if((A==true)&&(v==false))
                 {
@@ -3585,7 +3581,7 @@ void OnToe()
         }
     else if(((h==io)||(h==iW)||(h==iw)||(h==iO)))
         {
-        if((C==true)||(c==true))
+        if((C==false)&&(c==false))
             {
             if((B==true)&&(u==false))
                 {
