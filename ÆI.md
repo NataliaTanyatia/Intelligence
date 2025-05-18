@@ -3138,7 +3138,7 @@ void M()
     if((iIHKt>f+gf)&&(iIHKk>f+gf)) m++;
     if(Price>HH[j-(y+1)])
         {
-        ArrayResize(kA,13*(x-y));
+        ArrayResize(kA,13*(S-Y));
         for(int i=0;i<13; i++){kA[i*(S-Y)+(j-(Y+1))]=cA[i*(S-Y)+(j-(Y+1))];}
         HH[j-(y+1)]=Price;
         }
@@ -3155,7 +3155,7 @@ void N()
     if((iIHKt<g-gf)&&(iIHKk<g-gf)) n++;
     if(Price<LL[j-(y+1)])
         {
-        ArrayResize(lA,13*(x-y));
+        ArrayResize(lA,13*(S-Y));
         for(int i=0;i<13; i++){lA[i*(S-Y)+(j-(Y+1))]=cA[i*(S-Y)+(j-(Y+1))];}
         LL[j-(y+1)]=Price;
         }
@@ -3785,5 +3785,4 @@ void OnTick()
     Comment("    ^",iZ,":",Z,"|",iz,":",z,"=",k[Z-(y+1)],"|",k[z-(y+1)],
     "\n Lim",iO,":",O,"^",k[O-(y+1)],"_",l[O-(y+1)],".",io,":",o,"^",k[o-(y+1)],"_",l[o-(y+1)],"=",h,".",C,":",c,
     "\n    _",iW,":",W,"|",iw,":",w,"=",l[W-(y+1)],"|",l[w-(y+1)]);
-    }//U+1F48E-💎 Natalia Tanyatia
-```
+    }//U+1F48E-💎 Natalia Tanyatia```
