@@ -254,6 +254,83 @@ pkg install -y libjpeg-turbo libpng && pip install numpy numba
 git clone https://github.com/NataliaTanyatia/Intelligence.git
 cd Intelligence
 ```
+#### **Original Impulse**
+```bash
+cd /data/data/com.termux/files/home/storage/shared/Intelligence
+```
+```bash
+chmod +x termux_init.sh
+bash termux_init.sh
+```
+```bash
+chmod +x setup.sh
+bash setup.sh
+```
+You can generate NEXTAUTH_SECRET in the .env file with:
+```bash
+openssl rand -base64 32
+```
+Make sure prisma/schema.prisma exists and has no syntax errors.
+
+Double-check that this is your schema:
+```Prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions  Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id])
+}
+```
+```bash
+mv Intelligence ~/Intelligence
+cd ~/Intelligence
+```
+```bash
+chmod +x install.sh
+bash install.sh
+```
+```bash
+# Set npm to use legacy deps to avoid peer conflict
+npm config set legacy-peer-deps true
+
+# Install openssl, bcryptjs
+pkg install openssl-tool
+npm install bcryptjs
+
+# Replace bcrypt with bcryptjs in seed-admin.ts
+sed -i 's/import bcrypt from '\''bcrypt'\'';/import bcrypt from '\''bcryptjs'\'';/' scripts/seed-admin.ts
+
+# Re-run Prisma
+npx prisma generate
+npx prisma migrate dev --name init
+
+# Re-run seeder
+npx tsx scripts/seed-admin.ts```
+```
+```bash
+chmod +x install_and_run.sh
+bash install_and_run.sh
+```
 
 ---
 
