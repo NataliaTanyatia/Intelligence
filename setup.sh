@@ -802,3 +802,784 @@ initCoreServices().then(() => {
 });
 EOL
 #-------------------------------------------
+#!/bin/bash
+set -e
+
+echo "[+] Setting up Intelligence Web App project structure..."
+
+# Create required directories
+mkdir -p app/api/multimodal
+mkdir -p app/api/ocr
+mkdir -p app/api/playwright
+mkdir -p app/api/auth/[...nextauth]
+mkdir -p app/api/crawl/queue
+mkdir -p app/api/crawl/[id]/blob
+mkdir -p app/api/crawl/[id]/annotate
+mkdir -p app/api/crawl/[id]
+mkdir -p app/(authenticated)/multimodal
+mkdir -p app/(authenticated)/ocr-tool
+mkdir -p app/(authenticated)/dashboard
+mkdir -p app/auth/signin
+mkdir -p app/logic-events
+mkdir -p access/vertex_ai
+mkdir -p firebase/functions/src
+mkdir -p generated_files
+mkdir -p lib
+mkdir -p prisma
+mkdir -p scripts
+
+echo "[+] Directory structure created."
+
+
+echo "[+] Writing API backend routes..."
+
+# Step 2: File Generation API
+cat > "app/api/multimodal/route.ts" << 'EOF'
+import { NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
+
+export async function POST(req: Request) {
+  const { fileType, content } = await req.json();
+
+  if (!fileType || !content) {
+    return NextResponse.json({ error: 'Missing fileType or content' }, { status: 400 });
+  }
+
+  const timestamp = Date.now();
+  const fileName = `file_\${timestamp}.\${fileType}`;
+  const outputDir = path.resolve(process.cwd(), 'generated_files');
+
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const filePath = path.join(outputDir, fileName);
+
+  try {
+    switch (fileType) {
+      case 'text':
+        fs.writeFileSync(filePath, content);
+        break;
+      default:
+        return NextResponse.json({ error: `Unsupported file type: \${fileType}` }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, filePath }, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+EOF
+
+# Step 3: OCR Backend API
+cat > "app/api/ocr/route.ts" << 'EOF'
+import { NextResponse } from 'next/server';
+import * as Tesseract from 'tesseract.js';
+
+export async function POST(req: Request) {
+  try {
+    const buffer = Buffer.from(await req.arrayBuffer());
+
+    const {
+      data: { text }
+    } = await Tesseract.recognize(buffer, 'eng');
+
+    return NextResponse.json({ text }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+EOF
+
+
+# Step 4: Playwright automation API
+cat > "app/api/playwright/route.ts" << 'EOF'
+import { NextResponse } from 'next/server';
+import { chromium } from 'playwright';
+
+export async function POST(req: Request) {
+  const { url, action } = await req.json();
+
+  if (!url || !action) {
+    return NextResponse.json({ error: 'Missing url or action' }, { status: 400 });
+  }
+
+  try {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    await page.goto(url);
+
+    let result;
+    let contentType = 'application/octet-stream';
+
+    switch (action) {
+      case 'blob':
+      case 'screenshot':
+        result = await page.screenshot({ fullPage: true });
+        contentType = 'image/png';
+        break;
+      case 'html':
+        result = await page.content();
+        contentType = 'text/html';
+        break;
+      default:
+        result = 'Page visited, no recognized action.';
+        contentType = 'text/plain';
+    }
+
+    await browser.close();
+
+    if (Buffer.isBuffer(result)) {
+      return new NextResponse(result, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': 'attachment; filename="blob_output"'
+        }
+      });
+    }
+
+    return NextResponse.json({ result }, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+EOF
+
+# Step 8.2: Crawl Job POST
+cat > "app/api/crawl/route.ts" << 'EOF'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { enqueueCrawlJob } from '@/lib/queue';
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+    const { url } = body;
+
+    if (!url || typeof url !== 'string') {
+      return NextResponse.json({ error: 'Missing or invalid URL' }, { status: 400 });
+    }
+
+    const job = await prisma.crawlJob.create({ data: { url, status: 'pending' } });
+
+    await enqueueCrawlJob(job);
+
+    return NextResponse.json({ id: job.id, status: 'queued' }, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+EOF
+
+# Step 8.3: Crawl Job GET
+cat > "app/api/crawl/[id]/route.ts" << 'EOF'
+import { prisma } from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    const job = await prisma.crawlJob.findUnique({
+      where: { id: params.id },
+      include: { blobs: true, annotations: true },
+    });
+
+    if (!job) return NextResponse.json({ error: 'Crawl job not found' }, { status: 404 });
+
+    return NextResponse.json(job, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+EOF
+
+
+# Step 8.4: Blob Upload
+cat > "app/api/crawl/[id]/blob/route.ts" << 'EOF'
+import { prisma } from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const contentType = req.headers.get('content-type') || '';
+    const type = req.headers.get('x-blob-type') || 'unknown';
+
+    if (!contentType.includes('application/octet-stream')) {
+      return NextResponse.json({ error: 'Invalid content-type' }, { status: 400 });
+    }
+
+    const data = await req.arrayBuffer();
+
+    const job = await prisma.crawlJob.findUnique({ where: { id: params.id } });
+    if (!job) {
+      return NextResponse.json({ error: 'Crawl job not found' }, { status: 404 });
+    }
+
+    const blob = await prisma.blob.create({
+      data: {
+        crawlJobId: job.id,
+        type,
+        data: Buffer.from(data),
+      },
+    });
+
+    return NextResponse.json({ id: blob.id, type: blob.type }, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+EOF
+
+# Step 8.5: Annotation Submit
+cat > "app/api/crawl/[id]/annotate/route.ts" << 'EOF'
+import { prisma } from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  try {
+    const body = await req.json();
+    const { kind, content } = body;
+
+    if (!kind || !content) {
+      return NextResponse.json({ error: 'Missing kind or content' }, { status: 400 });
+    }
+
+    const job = await prisma.crawlJob.findUnique({ where: { id: params.id } });
+    if (!job) {
+      return NextResponse.json({ error: 'Crawl job not found' }, { status: 404 });
+    }
+
+    const annotation = await prisma.annotation.create({
+      data: {
+        crawlJobId: job.id,
+        kind,
+        content,
+      },
+    });
+
+    return NextResponse.json(annotation, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+EOF
+
+# Step 8.6: Queue Viewer
+cat > "app/api/crawl/queue/route.ts" << 'EOF'
+import { prisma } from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  try {
+    const jobs = await prisma.crawlJob.findMany({
+      where: {
+        status: {
+          in: ['pending', 'running'],
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      take: 50,
+    });
+
+    return NextResponse.json(jobs, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+EOF
+
+# lib/queue.ts
+cat > "lib/queue.ts" << 'EOF'
+import { prisma } from './db';
+
+export async function enqueueCrawlJob(job: { id: string; url: string }) {
+  console.log(`Crawl job enqueued: ${job.url} (id: ${job.id})`);
+
+  // Simulated async processing
+  setTimeout(async () => {
+    try {
+      await prisma.crawlJob.update({
+        where: { id: job.id },
+        data: { status: 'done' }
+      });
+    } catch (err) {
+      await prisma.crawlJob.update({
+        where: { id: job.id },
+        data: { status: 'failed' }
+      });
+    }
+  }, 1000);
+}
+EOF
+
+
+echo "[+] Writing frontend UIs and auth system..."
+
+# Step 5: Multimodal UI
+cat > "app/(authenticated)/multimodal/page.tsx" << 'EOF'
+'use client';
+
+import { useState } from 'react';
+
+export default function MultimodalPage() {
+  const [fileType, setFileType] = useState('text');
+  const [content, setContent] = useState('');
+  const [url, setUrl] = useState('');
+  const [blobUrl, setBlobUrl] = useState('');
+
+  async function generateFile() {
+    const res = await fetch('/api/multimodal', {
+      method: 'POST',
+      body: JSON.stringify({ fileType, content }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    const data = await res.json();
+    alert(JSON.stringify(data));
+  }
+
+  async function getBlobFromWeb() {
+    const res = await fetch('/api/playwright', {
+      method: 'POST',
+      body: JSON.stringify({ url, action: 'blob' }),
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    setBlobUrl(objectUrl);
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      <h1 className="text-xl font-bold">Multimodal File Generator</h1>
+
+      <div>
+        <label className="block font-semibold">Content:</label>
+        <textarea
+          className="w-full border p-2 rounded"
+          rows={4}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        <select
+          className="mt-2 border p-1"
+          value={fileType}
+          onChange={(e) => setFileType(e.target.value)}
+        >
+          <option value="text">Text</option>
+        </select>
+        <button className="ml-2 px-4 py-1 bg-blue-600 text-white rounded" onClick={generateFile}>
+          Generate File
+        </button>
+      </div>
+
+      <div>
+        <label className="block font-semibold">URL for Blob:</label>
+        <input
+          className="w-full border p-2 rounded"
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <button className="mt-2 px-4 py-1 bg-green-600 text-white rounded" onClick={getBlobFromWeb}>
+          Get Blob
+        </button>
+      </div>
+
+      {blobUrl && (
+        <div>
+          <h2 className="font-semibold">Blob Result:</h2>
+          <img src={blobUrl} alt="Blob from web" className="border rounded max-w-full" />
+        </div>
+      )}
+    </div>
+  );
+}
+EOF
+
+# Step 6: OCR Tool UI
+cat > "app/(authenticated)/ocr-tool/page.tsx" << 'EOF'
+'use client';
+
+import { useState } from 'react';
+
+export default function OcrToolPage() {
+  const [url, setUrl] = useState('');
+  const [ocrText, setOcrText] = useState('');
+
+  async function extractTextFromUrl() {
+    const blobRes = await fetch('/api/playwright', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, action: 'blob' })
+    });
+
+    const blob = await blobRes.blob();
+
+    const ocrRes = await fetch('/api/ocr', {
+      method: 'POST',
+      body: blob
+    });
+
+    const { text } = await ocrRes.json();
+    setOcrText(text);
+  }
+
+  return (
+    <div className="p-4 space-y-4">
+      <h1 className="text-xl font-bold">OCR from Web Blob</h1>
+
+      <input
+        type="text"
+        className="w-full border p-2 rounded"
+        placeholder="Enter URL to extract text from"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+      />
+
+      <button
+        className="mt-2 px-4 py-1 bg-purple-700 text-white rounded"
+        onClick={extractTextFromUrl}
+      >
+        Extract Text
+      </button>
+
+      {ocrText && (
+        <div className="mt-4 border p-2 bg-gray-100 rounded">
+          <h2 className="font-semibold mb-1">OCR Result:</h2>
+          <pre>{ocrText}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+EOF
+
+
+# Step 7.1: Prisma schema for auth
+cat > "prisma/schema.prisma" << 'EOF'
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions  Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id])
+}
+EOF
+
+# Step 7.2: Admin seeding script
+cat > "scripts/seed-admin.ts" << 'EOF'
+import bcrypt from 'bcrypt';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const email = 'admin@example.com';
+  const rawPassword = 'supersecure';
+  const hashed = await bcrypt.hash(rawPassword, 10);
+
+  await prisma.user.upsert({
+    where: { email },
+    update: {},
+    create: {
+      email,
+      password: hashed
+    }
+  });
+
+  console.log('Admin seeded');
+}
+
+main().finally(() => prisma.$disconnect());
+EOF
+
+# Step 7.3: lib/prisma.ts
+cat > "lib/prisma.ts" << 'EOF'
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+EOF
+
+# Step 7.4: NextAuth credentials config
+cat > "app/api/auth/[...nextauth]/route.ts" << 'EOF'
+import NextAuth from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { PrismaAdapter } from '@auth/prisma-adapter';
+import bcrypt from 'bcrypt';
+import { prisma } from '@/lib/prisma';
+
+const handler = NextAuth({
+  adapter: PrismaAdapter(prisma),
+  providers: [
+    CredentialsProvider({
+      name: 'Credentials',
+      credentials: {
+        email: { label: 'Email', type: 'text' },
+        password: { label: 'Password', type: 'password' }
+      },
+      async authorize(credentials) {
+        const user = await prisma.user.findUnique({
+          where: { email: credentials?.email }
+        });
+
+        if (!user || !credentials?.password) return null;
+
+        const isValid = await bcrypt.compare(credentials.password, user.password);
+        return isValid ? user : null;
+      }
+    })
+  ],
+  session: { strategy: 'jwt' },
+  callbacks: {
+    async session({ session, token }) {
+      if (session?.user) {
+        session.user.id = token.sub!;
+      }
+      return session;
+    }
+  },
+  pages: { signIn: '/auth/signin' }
+});
+
+export { handler as GET, handler as POST };
+EOF
+
+# Step 7.5: middleware.ts
+cat > "middleware.ts" << 'EOF'
+import { withAuth } from 'next-auth/middleware';
+
+export default withAuth({
+  pages: { signIn: '/auth/signin' }
+});
+
+export const config = {
+  matcher: ['/app/(authenticated)/:path*']
+};
+EOF
+
+# Step 7.6: Sign-in UI
+cat > "app/auth/signin/page.tsx" << 'EOF'
+'use client';
+
+import { signIn } from 'next-auth/react';
+import { useState } from 'react';
+
+export default function SignInPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSignIn = async () => {
+    const result = await signIn('credentials', {
+      email,
+      password,
+      redirect: false
+    });
+
+    if (result?.error) {
+      alert('Failed to sign in');
+    } else {
+      window.location.href = '/app/(authenticated)/dashboard';
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-sm mx-auto space-y-4">
+      <h1 className="text-xl font-bold">Sign In</h1>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="w-full border p-2 rounded"
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        className="w-full border p-2 rounded"
+      />
+      <button
+        onClick={handleSignIn}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        Sign In
+      </button>
+    </div>
+  );
+}
+EOF
+
+# Step 7.7: Dashboard UI
+cat > "app/(authenticated)/dashboard/page.tsx" << 'EOF'
+export default function DashboardPage() {
+  return <div className="p-4">Welcome to the secure dashboard!</div>;
+}
+EOF
+
+
+echo "[+] Writing observability and Vertex AI integration..."
+
+# Step 9.1: LogicEvent table in schema.prisma
+cat >> "prisma/schema.prisma" << 'EOF'
+
+model LogicEvent {
+  id        String   @id @default(cuid())
+  type      String
+  jobId     String?
+  blobId    String?
+  message   String
+  createdAt DateTime @default(now())
+}
+EOF
+
+# Step 9.2: emitLogicEvent utility
+cat > "app/logic-events/emit.ts" << 'EOF'
+import { prisma } from '@/lib/db';
+
+export async function emitLogicEvent(
+  type: string,
+  message: string,
+  data: { jobId?: string; blobId?: string } = {}
+) {
+  try {
+    await prisma.logicEvent.create({
+      data: {
+        type,
+        message,
+        jobId: data.jobId,
+        blobId: data.blobId,
+      },
+    });
+  } catch (err) {
+    console.error('[LogicEvent]', err);
+  }
+}
+EOF
+
+# Step 10.1: Firebase Config Placeholder
+cat > "firebaseConfig.json" << 'EOF'
+{
+  "apiKey": "AIzaSyA-EXAMPLE",
+  "authDomain": "intelligence-app.firebaseapp.com",
+  "projectId": "intelligence-app",
+  "storageBucket": "intelligence-app.appspot.com",
+  "messagingSenderId": "1234567890",
+  "appId": "1:1234567890:web:abcdef123456"
+}
+EOF
+
+# Step 10.2: Vertex AI Access Point
+cat > "access/vertex_ai/gemini_multimodal.ts" << 'EOF'
+import { initializeApp } from 'firebase/app';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import firebaseConfig from '../../firebaseConfig.json';
+
+const app = initializeApp(firebaseConfig);
+const functions = getFunctions(app, 'us-central1');
+
+export async function queryGemini(input: {
+  prompt: string;
+  imageBase64?: string;
+  audioBase64?: string;
+}) {
+  const callGemini = httpsCallable(functions, 'callGeminiModel');
+  const result = await callGemini(input);
+  return result.data;
+}
+EOF
+
+# Step 10.3: Firebase Cloud Function (Gemini)
+cat > "firebase/functions/src/callGeminiModel.ts" << 'EOF'
+import { onCall } from 'firebase-functions/v2/https';
+import { initializeApp } from 'firebase-admin/app';
+import { GoogleAuth } from 'google-auth-library';
+import { google } from 'googleapis';
+
+initializeApp();
+
+export const callGeminiModel = onCall(async (request) => {
+  const { prompt, imageBase64, audioBase64 } = request.data;
+
+  const auth = new GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  });
+
+  const client = await auth.getClient();
+  const vertexAI = google.aiplatform({ version: 'v1', auth: client });
+
+  const projectId = process.env.GCLOUD_PROJECT!;
+  const location = 'us-central1';
+  const endpoint = `projects/\${projectId}/locations/\${location}/publishers/google/models/gemini-pro-vision`;
+
+  const inputData = {
+    instances: [
+      {
+        prompt,
+        ...(imageBase64 && { image: { bytesBase64Encoded: imageBase64 } }),
+        ...(audioBase64 && { audio: { bytesBase64Encoded: audioBase64 } })
+      }
+    ]
+  };
+
+  const res = await vertexAI.projects.locations.publishers.models.predict({
+    name: endpoint,
+    requestBody: inputData,
+  });
+
+  return res.data;
+});
+EOF
+
+# Step 10.4: firebase/functions/package.json
+cat > "firebase/functions/package.json" << 'EOF'
+{
+  "name": "functions",
+  "dependencies": {
+    "firebase-admin": "^11.0.0",
+    "firebase-functions": "^4.0.0",
+    "googleapis": "^105.0.0",
+    "google-auth-library": "^8.0.0"
+  },
+  "engines": {
+    "node": "16"
+  }
+}
+EOF
+
+# Step 10.5: firebase.json
+cat > "firebase.json" << 'EOF'
+{
+  "functions": {
+    "source": "firebase/functions"
+  }
+}
+EOF
