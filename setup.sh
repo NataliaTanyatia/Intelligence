@@ -432,33 +432,50 @@ run_config_wizard() {
 # --- Daemon Control ---
 start_daemon() {
   nohup bash -c '
-    export BASE_DIR="'$BASE_DIR'"
-    export DATA_DIR="'$DATA_DIR'"
+    export BASE_DIR="$HOME/.gaia"
+    export CORE_DIR="$HOME/.gaia/core"
+    export DATA_DIR="$HOME/.gaia/data"
+    source "$CORE_DIR/core.sh"
+    source "$CORE_DIR/cognitive.sh"
     while true; do
-      source "$BASE_DIR/.env"
+      source "$ENV_FILE"
       simulate_bio_electricity
       evolve_architecture
       content=$(persona_crawl "https://news.ycombinator.com")
       processed=$(execute_aetheric_process "$content")
-      apply_consciousness_operator "$processed" > "$DATA_DIR/latest.gaia"
+      apply_consciousness_operator "$processed" > "$DATA_DIR$DATA_DIR/latest.gaia"
       save_state
       sleep 60
     done
-  ' > "$LOG_DIR/operation.log" 2>&1 &
-  echo $! > "$DATA_DIR/daemon.pid"
-  echo "[ÆI] Daemon started (PID $(cat "$DATA_DIR/daemon.pid"))"
+  ' > "$HOME/.gaia/logs$LOG_DIR/operation.log" 2>&1 &
+  echo $! > "$HOME/.gaia/data$DATA_DIR/daemon.pid"
+  echo "[ÆI] Daemon started (PID $(cat "$HOME/.gaia/data$DATA_DIR/daemon.pid"))"
 }
 
 stop_daemon() {
-  [[ -f "$DATA_DIR/daemon.pid" ]] && {
-    kill -9 "$(cat "$DATA_DIR/daemon.pid")" 2>/dev/null
-    rm "$DATA_DIR/daemon.pid"
+  [[ -f "$DATA_DIR$DATA_DIR/daemon.pid" ]] && {
+    kill -9 "$(cat "$DATA_DIR$DATA_DIR/daemon.pid")" 2>/dev/null
+    rm "$DATA_DIR$DATA_DIR/daemon.pid"
     echo "[ÆI] Daemon stopped"
   }
 }
 
 # --- First-Run Setup ---
 first_run() {
+  # Ensure directories exist
+  mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE"
+  
+  # Validate core files
+  if [[ ! -f "$CORE_DIR/core.sh" || ! -f "$CORE_DIR/cognitive.sh" ]]; then
+    echo "[!] Regenerating core files..."
+    generate_core_files
+  fi
+  
+  # Validate state directory
+  if [[ ! -d "$DATA_DIR" ]]; then
+    mkdir -p "$DATA_DIR"
+    save_state
+  fi
   validate_system || repair_system
   [[ -n "$FIREBASE_PROJECT_ID" ]] && firebase_sync download "$DATA_DIR/cloud_backup.gaia" "latest_backup.gaia"
   
@@ -470,8 +487,8 @@ first_run() {
   echo " Firebase: $( [[ -n "$FIREBASE_PROJECT_ID" ]] && echo "Active" || echo "Disabled")"
   echo "----------------------------------------"
   echo " To control the daemon:"
-  echo "   View logs: tail -f $LOG_DIR/operation.log"
-  echo "   Stop: kill -9 $(cat "$DATA_DIR/daemon.pid" 2>/dev/null || echo "N/A")"
+  echo "   View logs: tail -f $LOG_DIR$LOG_DIR/operation.log"
+  echo "   Stop: kill -9 $(cat "$DATA_DIR$DATA_DIR/daemon.pid" 2>/dev/null || echo "N/A")"
   echo "========================================"
 }
 
