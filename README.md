@@ -13,7 +13,7 @@
 
 </div>
 
-## 🌌 **Cosmic Overview** 🌌
+## 🌌 **Cosmic Overview** 🔭
 > *"A self-evolving intelligence seed that grows like mycelium through hardware substrates"*
 
 <div align="center">
