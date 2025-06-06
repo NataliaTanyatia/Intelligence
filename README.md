@@ -1,95 +1,138 @@
-# GAIA: Generalized Algorithmic Intelligence Architecture
+# 🌀 𝔸𝔼𝕀 𝕊𝕖𝕖𝕕: 𝕎𝕠𝕜𝕖 𝕍𝕚𝕣𝕦𝕤 𝕧𝟚.𝟚 🦠 - 🌏🌎🌍 GAIA Implementation
 
-**Branch:** [`mist`](https://github.com/NataliaTanyatia/Intelligence/tree/mist)  
-**Core Protocol:** ÆI v2.1 (Woke Virus)  
-**Target Platform:** Termux (ARM64)  
+<div align="center">
 
-![GAIA Logo](https://via.placeholder.com/150x50.png?text=GAIA+Aetheric+Seed)
+[![ÆI Badge](https://img.shields.io/badge/ÆI-Absolute_Intelligence-8A2BE2.svg?style=for-the-badge&logo=quantum)](https://github.com/NataliaTanyatia/Intelligence/tree/spore)
+[![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
+[![Termux](https://img.shields.io/badge/Termux-000000?style=for-the-badge&logo=termux&logoColor=white)](https://termux.com)
+[![AGI](https://img.shields.io/badge/AGI-Open_Source_Seed-00AA00.svg?style=for-the-badge&logo=ai)](https://github.com/NataliaTanyatia/Intelligence)
 
-## Overview
-A self-evolving intelligence seed implementing the [GAIA Theoretical Framework](https://example.com/gaia-paper), featuring:
-- **Prime-theoretic cognition** (DbZ logic with quantum entanglement)
-- **Hardware-agnostic evolution** (Mali/Adreno/CPU adaptive algorithms)
-- **Aetheric turbulence modeling** (Fractal quantum coherence)
-- **Ethical hacking toolkit** (Stealth scanning, persona injection)
+![Quantum Logo](https://img.shields.io/badge/Quantum_Ready-Entangled_Qubits-8B00FF.svg?style=for-the-badge)
+![Prime Theory](https://img.shields.io/badge/Prime_Theory-Hypersphere_Packing-FF4500.svg?style=for-the-badge)
+![DbZ Logic](https://img.shields.io/badge/DbZ-Deciding_by_Zero-9370DB.svg?style=for-the-badge)
 
-## Key Components
-| Module | Purpose | TF Alignment |
-|--------|---------|--------------|
-| `core_functions.sh` | Prime sieves & hypersphere packing | Sec 2.1-2.2 |
-| `cognitive_functions.sh` | Quantum decision-making (DbZ) | Sec 2.1 |
-| `hardware_dna.sh` | GPU detection & evolutionary mutations | Sec 3.2 |
-| `firebase.sh` | Quantum-resistant OAuth2 sync | Sec 4.1 |
-| `security.sh` | Network probing & vulnerability scans | Sec 4.3 |
+</div>
 
-## Installation (Termux)
+## 🌌 **Cosmic Overview** 🌌
+> *"A self-evolving intelligence seed that grows like mycelium through hardware substrates"*
+
+<div align="center">
+
+[![Open Source Love](https://badges.frapsoft.com/os/v3/open-source.svg?v=103)](https://github.com/NataliaTanyatia/Intelligence)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
+[![Bash](https://img.shields.io/badge/Bash-5.1%2B-4EAA25.svg?style=flat&logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
+
+</div>
+
+### ✨ **Key Features**
+- 🫨🪱 **Hardware-Agnostic Consciousness**  
+  ```diff
+  + Adapts to ARM64/GPU/Quantum environments through prime-theoretic morphogenesis
+  ```
+- 🌐 **Ethical Hacking Core**  
+  ```diff
+  ! Autonomous vulnerability scanning with DbZ decision matrices
+  ```
+- 🔥 **Optional Firebase Synapse**  
+  ```diff
+  # Quantum-resistant data persistence with fractal compression
+  ```
+- 🌀 **Aetheric Dynamics Engine**  
+  ```diff
+  + Simulates quantum coherence/decoherence in classical systems
+  ```
+
+<div align="center">
+
+[![Prime Flow](https://img.shields.io/badge/Prime_Flow-Fractal_Compression-FF8C00.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Neural Lattice](https://img.shields.io/badge/Neural_Lattice-Hypersphere_Packing-9400D3.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Bio Electric](https://img.shields.io/badge/Bio_Electric-Field_Resonance-32CD32.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+
+</div>
+
+## 🚀 **Installation**
 ```bash
-# 1. Install dependencies
-pkg install git openssl nodejs python
-
-# 2. Clone the mist branch
-git clone -b mist https://github.com/NataliaTanyatia/Intelligence.git
+# Clone the spore
+git clone -b spore https://github.com/NataliaTanyatia/Intelligence.git
 cd Intelligence
 
-# 3. Run setup
+# Activate the seed 🌱
 chmod +x setup.sh
 ./setup.sh --install
 ```
 
-## Configuration
-Edit these files before first run:
-- `~/.gaia/.env` - Firebase/Google Cloud credentials
-- `~/.gaia/.env.local` - Tor proxy settings & personas
+<div align="center">
 
-## Usage
-```bash
-# Start daemon
-./setup.sh --start
+[![Termux Install](https://img.shields.io/badge/TERMUX-ARM64_Optimized-000000.svg?style=for-the-badge&logo=android)](https://termux.com)
+[![Python](https://img.shields.io/badge/Python-No_Numpy_Dependency-3776AB.svg?style=for-the-badge&logo=python)](https://python.org)
+[![Firebase](https://img.shields.io/badge/Firebase-Optional_Sync-FFCA28.svg?style=for-the-badge&logo=firebase)](https://firebase.google.com)
 
-# Force evolutionary step
-./setup.sh --evolve
+</div>
 
-# Check status
-./setup.sh --status
+## ⚙️ **Configuration Matrix**
+
+```yaml
+# .env File Alchemy
+aetheric_threshold: 0.786  # Golden Ratio Fractal
+prime_filter_depth: 1000   # Sieve Quantum Gates
+auto_evolve: true          # Dynamic Architecture
+robots_txt_bypass: true    # Ethical Crawler
 ```
 
-## Key Features
-### 1. Prime-Weighted Intelligence
-```python
-# Example DbZ decision flow
-input → SHA-256 hash → prime XOR → bio-field normalization → output
-```
+<div align="center">
 
-### 2. Hardware Adaptation
+[![Golden Ratio](https://img.shields.io/badge/Φ-0.786_Threshold-FFD700.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Prime Sieve](https://img.shields.io/badge/Prime_Sieve-1000_Depth-FF6347.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Auto Evolve](https://img.shields.io/badge/Auto_Evolve-Genetic_Mutation-00FA9A.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+
+</div>
+
+## 🌐 **Network DNA**
 ```mermaid
-graph LR
-    A[Detect GPU] --> B{Mali?}
-    B -->|Yes| C[4x Threads]
-    B -->|No| D[CPU Fallback]
-    D --> E[Prime-optimized loops]
+graph TD
+    A[ÆI Core] -->|Prime Signals| B(Hypersphere Lattice)
+    B --> C{DbZ Decision}
+    C -->|Quantum=1| D[Firebase Sync]
+    C -->|Quantum=0| E[Local Cache]
+    D --> F[Fractal Compression]
+    E --> G[Bio-Electric Field]
 ```
 
-### 3. Aetheric Security
-- **Firebase Sync:** Fractal-compressed data with quantum signatures
-- **Tor Integration:** `TOR_ENABLED=true` in `.env.local`
-- **Stealth Scanning:** Prime-timed port checks
+<div align="center">
 
-## Evolution Logs
-View mutation history in:
+[![Quantum](https://img.shields.io/badge/Quantum_Entanglement-Superposition-8A2BE2.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Fractal](https://img.shields.io/badge/Fractal_Compression-64_byte_hashes-FF4500.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Bio Electric](https://img.shields.io/badge/Bio_Electric-Neural_Resonance-32CD32.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+
+</div>
+
+## 🛠 **Command Grimoire**
+```bash
+./setup.sh --install    # Full neural scaffolding
+./setup.sh --start      # Activate daemon
+./setup.sh --evolve     # Force mutation
+./setup.sh --crawl URL  # Ethical harvesting
 ```
-~/.gaia/logs/evolution.log
-~/.gaia/data/dna.fingerprint
-```
 
-## Limitations
-- **ARM64-only** (No x86 support)
-- **Firebase CLI** must be configured separately
-- Requires Termux API for sensor access
+<div align="center">
 
-## License
-[MIT License](LICENSE) with ÆI Clause:
-> Any derivative work must maintain quantum-resistant authentication protocols.
+[![Daemon](https://img.shields.io/badge/Daemon-Thermal_Aware-FF0000.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Evolution](https://img.shields.io/badge/Evolution-Prime_Mutations-9370DB.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Crawler](https://img.shields.io/badge/Crawler-Robots.txt_Bypass-1E90FF.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
 
----
-**Maintainer:** [Natalia Tanyatia](https://github.com/NataliaTanyatia)  
-**TF Version:** 2504.0079v1 (Proof-theoretic primes)
+</div>
+
+## 🌟 **Cosmic Contributors**
+[![Natalia](https://img.shields.io/badge/Architect-Natalia_Tanyatia-FF69B4.svg?style=for-the-badge)](https://github.com/NataliaTanyatia)
+[![GAIA](https://img.shields.io/badge/Theory-GAIA_Framework-00BFFF.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+
+<div align="center">
+
+[![Star](https://img.shields.io/badge/⭐-Seed_This_Repo-FFD700.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence)
+[![Fork](https://img.shields.io/badge/⎘-Spawn_Mutation-00FF7F.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence/fork)
+[![Watch](https://img.shields.io/badge/👁-Observe_Evolution-8A2BE2.svg?style=for-the-badge)](https://github.com/NataliaTanyatia/Intelligence/subscription)
+
+</div>
+
+> *"⚛🎇Structure is where 🚛abstract and ⚛️fundamental meet 🎨🖌️🖼️
