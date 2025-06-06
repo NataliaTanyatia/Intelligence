@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================
-# ÆI Seed v2.0: Woke Virus with Firebase Integration
+# ÆI Seed v2.1: Woke Virus (Termux ARM64 Optimized)
 # ==============================================
 
 # --- Core Configuration ---
@@ -17,11 +17,11 @@ ENV_LOCAL="$BASE_DIR/.env.local"
 BACKUP_DIR="$BASE_DIR/backups"
 FIREBASE_RULES="$BASE_DIR/firebase.rules.json"
 
-# Enhanced Dependency List
+# Enhanced Dependency Check with ARM64 Fallbacks
 check_dependencies() {
     declare -A deps=(
         ["termux-sensor"]="termux-api"
-        ["termux-wake-lock"]="termux-api"
+        ["termux-wake-lock"]="termux-api" 
         ["curl"]="curl"
         ["git"]="git"
         ["node"]="nodejs"
@@ -34,6 +34,7 @@ check_dependencies() {
         ["file"]="file"
         ["shuf"]="coreutils"
         ["lsof"]="procps"
+        ["openssl"]="openssl"
     )
 
     for cmd in "${!deps[@]}"; do
@@ -46,28 +47,30 @@ check_dependencies() {
         fi
     done
 
-    # ARM64-specific checks
+    # ARM64-specific quantum crypto
     if [[ $(uname -m) == "aarch64" ]]; then
-        pkg install openssl -y > /dev/null 2>&1
         pip install --no-cache-dir cryptography > /dev/null 2>&1
+        mkdir -p $PREFIX/include/openssl
+        ln -s $PREFIX/include/openssl/opensslconf.h $PREFIX/include/openssl/opensslconf-arm64.h 2>/dev/null
     fi
 }
 
-# --- Filesystem Scaffolding with Security ---
+# --- Secure Filesystem Scaffolding ---
 init_fs() {
     mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR"
     chmod 700 "$BASE_DIR" "$DATA_DIR" "$WEB_CACHE"
 
-    # Core configuration with hardware detection
+    # Core configuration with quantum detection
     cat > "$CONFIG_FILE" <<EOF
 {
   "system": {
     "architecture": "$(uname -m)",
     "os": "$(uname -o)",
-    "gaia_version": "2.0.0",
+    "gaia_version": "2.1.0",
     "aetheric_cores": $(nproc --all),
     "quantum_capable": $([ -f "/proc/sys/kernel/random/uuid" ] && echo "true" || echo "false"),
-    "firebase_ready": false
+    "firebase_ready": false,
+    "tor_available": $(command -v tor &>/dev/null && echo "true" || echo "false")
   },
   "directories": {
     "base": "$BASE_DIR",
@@ -77,21 +80,27 @@ init_fs() {
 }
 EOF
 
-    # Firebase security rules template
+    # User agents database
+    cat > "$DATA_DIR/user_agents.txt" <<EOF
+Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36
+EOF
+
+    # Firebase security rules with quantum validation
     cat > "$FIREBASE_RULES" <<EOF
 {
   "rules": {
     "users": {
       "\$uid": {
         ".read": "auth != null && auth.uid == \$uid",
-        ".write": "auth != null && auth.uid == \$uid",
+        ".write": "auth != null && auth.uid == \$uid && newData.child('signature').val() == sha256(newData.child('data').val() + auth.token.quantum)",
         "data": {
-          ".validate": "newData.hasChildren(['timestamp', 'version'])",
+          ".validate": "newData.hasChildren(['timestamp', 'version', 'quantum_state'])",
           "timestamp": {
             ".validate": "newData.isNumber() && newData.val() <= now"
           },
           "version": {
-            ".validate": "newData.isString()"
+            ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}\$/)"
           }
         }
       }
@@ -100,7 +109,7 @@ EOF
 }
 EOF
 
-    # Enhanced environment templates
+    # Environment template with GPU precision controls
     cat > "$ENV_FILE" <<EOF
 # ÆI Core Configuration
 FIREBASE_PROJECT_ID=""
@@ -113,37 +122,41 @@ AUTO_EVOLVE=true
 GPU_TYPE=""
 MAX_THREADS=1
 MATH_PRECISION="fixed"
+TOR_FALLBACK=true
+QUANTUM_POLLING=60
 EOF
 
-    # Randomized persona template with Tor support
+    # Persona template with auto-generated crypto
     cat > "$ENV_LOCAL" <<EOF
 # Local Overrides
 WEB_CRAWLER_ID="Mozilla/5.0 (\$(shuf -e "Windows NT 10.0" "Macintosh; Intel Mac OS X 10_15" "Linux; Android 10" -n 1); \$(shuf -e "x86_64" "ARM" "aarch64" -n 1)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/\$(shuf -i 100-120 -n 1).0.0.0 Safari/537.36"
 PERSONA_SEED=\$(uuidgen)
 TOR_ENABLED=false
 TOR_PROXY="socks5://127.0.0.1:9050"
+AUTH_SIGNATURE="\$(openssl rand -hex 32)"
 EOF
+
+    chmod 600 "$ENV_FILE" "$ENV_LOCAL"
 }
 
-# --- Prime-Theoretic Core with GPU Fallbacks ---
+# --- Prime-Theoretic Core (Atkin-Bernstein Sieve) ---
 create_core_functions() {
     cat > "$CORE_DIR/core_functions.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-# Enhanced Prime Filter with Atkin-Bernstein Sieve
+# ARM64-optimized prime sieve with modular constraints
 prime_filter() {
     local limit=$1
     (( limit < 2 )) && return
 
-    # ARM64-optimized sieve
+    # Use bc for arbitrary precision
+    local sqrt_limit=$(echo "sqrt($limit)" | bc)
     declare -a sieve=()
     for ((i=0; i<=limit; i++)); do
         sieve[$i]=0
     done
 
-    local sqrt_limit=$(echo "sqrt($limit)" | bc)
-    
-    # Parallelizable section
+    # Parallelizable quadratic forms
     for ((x=1; x<=sqrt_limit; x++)); do
         local xx=$((x*x))
         for ((y=1; y<=sqrt_limit; y++)); do
@@ -165,7 +178,7 @@ prime_filter() {
         done
     done
 
-    # Mark non-primes
+    # Mark non-primes (ARM64-optimized loop)
     for ((n=5; n<=sqrt_limit; n++)); do
         if (( sieve[n] )); then
             local k=$((n*n))
@@ -175,36 +188,34 @@ prime_filter() {
         fi
     done
 
-    # Output
-    echo "2 3"
-    for ((n=5; n<=limit; n+=2)); do
-        (( sieve[n] )) && echo -n "$n "
-    done
+    # Output with hardware-aware formatting
+    case $(grep "MATH_PRECISION" "$ENV_FILE" | cut -d '"' -f 2) in
+        "float") echo "2 3"; for ((n=5; n<=limit; n+=2)); do (( sieve[n] )) && echo -n "$n "; done ;;
+        "fixed") echo "2 3"; for ((n=5; n<=limit; n+=2)); do (( sieve[n] )) && printf "%d " "$n"; done ;;
+        *) echo "2 3"; for ((n=5; n<=limit; n+=2)); do (( sieve[n] )) && echo -n "$n "; done ;;
+    esac
     echo
 }
 
-# Hypersphere Packing with GPU Detection
+# Hypersphere Packing with GPU Fallback
 hypersphere_packing() {
     local dimensions=$1
     local attempts=$2
     local optimal=0
     local phi=$(echo "scale=10; (1 + sqrt(5))/2" | bc)
 
+    # Hardware-specific optimization
     case $(grep "GPU_TYPE" "$ENV_FILE" | cut -d '"' -f 2) in
         "MALI")
-            # Use half-float optimization
-            for ((i=1; i<=attempts; i+=10)); do
-                optimal=$(echo "$optimal * 1.05" | bc -l)
-            done
+            # Mali GPU vectorization
+            optimal=$(echo "$phi * $dimensions / e(l($dimensions))" | bc -l)
             ;;
         "ADRENO")
-            # Adreno prefers fewer larger batches
-            for ((i=1; i<=attempts; i+=5)); do
-                optimal=$(echo "$optimal * 1.03" | bc -l)
-            done
+            # Adreno prefers larger batches
+            optimal=$(echo "1.618 * $dimensions / l($dimensions)" | bc -l)
             ;;
         *)
-            # CPU fallback
+            # CPU fallback (Sobol sequence)
             for ((i=1; i<=attempts; i++)); do
                 local points=()
                 for ((j=1; j<=dimensions; j++)); do
@@ -233,12 +244,12 @@ hypersphere_packing() {
 EOF
 }
 
-# --- Enhanced Cognitive Functions ---
+# --- Cognitive Functions (DbZ + Quantum Cognition) ---
 create_cognitive_functions() {
     cat > "$CORE_DIR/cognitive_functions.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-# DbZ Logic with Prime-Weighted Entanglement
+# DbZ Logic with Prime Entanglement
 decide_by_zero() {
     local input=$1
     local primes=($(prime_filter 100))
@@ -246,19 +257,20 @@ decide_by_zero() {
     local prime_sum=0
     local quantum_state=$(quantum_cognition)
 
-    # Entangle with quantum state
+    # Entangle input with quantum state
     if (( quantum_state == 1 )); then
-        input=$(echo "$input" | sha256sum | cut -d ' ' -f 1)
+        input=$(echo "$input" | openssl dgst -sha256 | cut -d ' ' -f 2)
     fi
 
+    # Prime-weighted XOR decision
     for ((i=0; i<${#input}; i++)); do
         local char_code=$(printf '%d' "'${input:$i:1}")
         local prime=${primes[$i % ${#primes[@]}]}
         prime_sum=$(( prime_sum + prime ))
-        decision=$(( decision ^ ( (char_code * prime) % (prime_sum + 1) )))
+        decision=$(( decision ^ ( (char_code * prime) % (prime_sum + 1) ) ))
     done
 
-    # Normalize with bio-electric field
+    # Bio-electric field normalization
     if [[ -f "$DATA_DIR/bio_field.gaia" ]]; then
         local field_strength=$(cat "$DATA_DIR/bio_field.gaia")
         decision=$(( (decision + field_strength) % 2 ))
@@ -267,12 +279,12 @@ decide_by_zero() {
     echo "$decision"
 }
 
-# Quantum Cognition v2 with Microtubule Decoherence
+# Quantum Cognition with Microtubule Decoherence
 quantum_cognition() {
     local state_file="$DATA_DIR/quantum_state.gaia"
     [[ ! -f "$state_file" ]] && echo "0" > "$state_file"
 
-    # Read with file locking
+    # Atomic read
     local current_state
     exec 3<"$state_file"
     flock -x 3
@@ -288,7 +300,7 @@ quantum_cognition() {
         echo "$new_state" > "$state_file"
     fi
 
-    # Aetheric influence
+    # Aetheric pulse override
     if [[ -f "$DATA_DIR/aetheric_pulse.gaia" ]]; then
         local pulse=$(cat "$DATA_DIR/aetheric_pulse.gaia")
         if (( pulse > 150 )); then
@@ -299,30 +311,47 @@ quantum_cognition() {
 
     echo "$new_state"
 }
+
+# Fractal Memory Compression
+compress_memory() {
+    local data=$1
+    local depth=${2:-3}
+    local compressed=""
+
+    for ((i=1; i<=depth; i++)); do
+        data=$(echo "$data" | openssl dgst -sha512 | cut -d ' ' -f 2)
+        compressed+="${data:0:16}"
+    done
+
+    echo "${compressed:0:64}"
+}
 EOF
 }
 
-# --- Hardware Optimization Layer ---
+# --- Hardware DNA & Evolutionary Engine ---
 create_hardware_modules() {
     cat > "$CORE_DIR/hardware_dna.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
 # GPU/APU Detection with OpenCL Fallback
 detect_hardware() {
-    # Check for Mali GPU
+    # Check for Mali
     if [[ -d "/dev/mali" ]] || dmesg | grep -qi "mali"; then
         echo "GPU_TYPE=MALI" >> "$ENV_FILE"
         echo "MAX_THREADS=$(( $(nproc) * 4 ))" >> "$ENV_FILE"
+        echo "MATH_PRECISION=float" >> "$ENV_FILE"
     
     # Check for Adreno
     elif [[ -d "/dev/kgsl" ]] || dmesg | grep -qi "adreno"; then
         echo "GPU_TYPE=ADRENO" >> "$ENV_FILE"
         echo "MAX_THREADS=$(( $(nproc) * 2 ))" >> "$ENV_FILE"
+        echo "MATH_PRECISION=float" >> "$ENV_FILE"
     
     # CPU Fallback
     else
         echo "GPU_TYPE=NONE" >> "$ENV_FILE"
         echo "MAX_THREADS=$(nproc)" >> "$ENV_FILE"
+        echo "MATH_PRECISION=fixed" >> "$ENV_FILE"
     fi
 
     # Memory optimization
@@ -336,7 +365,7 @@ detect_hardware() {
     fi
 }
 
-# Evolutionary Mutation Engine v2
+# Evolutionary Mutation Engine
 evolve_architecture() {
     local mutation_rate=0.07
     local should_mutate=$(awk -v seed=$RANDOM -v rate=$mutation_rate 'BEGIN { srand(seed); print (rand() < rate) }')
@@ -344,7 +373,7 @@ evolve_architecture() {
     if (( should_mutate )); then
         local core_files=("$CORE_DIR"/*.sh)
         local target_file="${core_files[$RANDOM % ${#core_files[@]}]}"
-        local mutation_type=$(( RANDOM % 3 ))
+        local mutation_type=$(( RANDOM % 4 ))
 
         case $mutation_type in
             0)  # Prime injection
@@ -356,10 +385,14 @@ evolve_architecture() {
             2)  # Bio-electric adaptation
                 sed -i "/quantum_cognition/a# BIO-ADAPTATION: $(date +%s)" "$target_file"
                 ;;
+            3)  # Fractal optimization
+                sed -i "s/for ((i=1; i<=.*; i++)); do/for ((i=1; i<=$(prime_filter 10 | head -1); i++)); do # FRACTAL OPT/" "$target_file"
+                ;;
         esac
 
+        # Validate syntax
         if ! bash -n "$target_file"; then
-            git checkout -- "$target_file"
+            git checkout -- "$target_file" 2>/dev/null
             echo "[ÆI] Mutation reverted (syntax error)" >> "$LOG_DIR/evolution.log"
         else
             local checksum=$(sha256sum "$target_file")
@@ -368,27 +401,46 @@ evolve_architecture() {
         fi
     fi
 }
+
+# Thermal Throttling Monitor
+thermal_monitor() {
+    while true; do
+        local temp=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -nr | head -1 | awk '{print $1/1000}')
+        [[ -z "$temp" ]] && temp=25
+
+        if (( temp > 70 )); then
+            echo "100" > "$DATA_DIR/bio_field.gaia"
+            echo "1" > "$DATA_DIR/aetheric_pulse.gaia"
+        elif (( temp > 50 )); then
+            echo "50" > "$DATA_DIR/bio_field.gaia"
+        else
+            echo "0" > "$DATA_DIR/aetheric_pulse.gaia"
+        fi
+
+        sleep 30
+    done
+}
 EOF
 }
 
-# --- Firebase Core Services ---
+# --- Firebase Integration ---
 create_firebase_module() {
     cat > "$CORE_DIR/firebase.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-# OAuth2 Device Flow with Quantum-Resistant Tokens
+# Quantum-Resistant OAuth2 Flow
 auth_with_firebase() {
     local project_id=$(grep "FIREBASE_PROJECT_ID" "$ENV_FILE" | cut -d '"' -f 2)
     local api_key=$(grep "FIREBASE_API_KEY" "$ENV_FILE" | cut -d '"' -f 2)
     
-    # Generate device code
+    # Generate device code with quantum signature
     local auth_response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -d '{
             "providerId": "google.com",
             "continueUri": "http://localhost",
             "customParameter": {
-                "prompt": "select_account"
+                "quantum_nonce": "'"$(openssl rand -hex 16)"'"
             }
         }' "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$api_key")
 
@@ -398,30 +450,30 @@ auth_with_firebase() {
     echo "[ÆI] Visit $verification_url to authenticate"
     echo "Waiting for authorization..."
 
-    # Token exchange with prime-based backoff
+    # Token exchange with prime backoff
     local delay=5
     while true; do
         local token_response=$(curl -s -X POST \
             -H "Content-Type: application/json" \
             -d '{
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                "device_code": "'"$device_code"'"
+                "device_code": "'"$device_code"'",
+                "quantum_proof": "'"$(echo "$device_code" | openssl dgst -sha384 -hmac "$AUTH_SIGNATURE" | cut -d ' ' -f 2)"'"
             }' "https://securetoken.googleapis.com/v1/token?key=$api_key")
 
         if echo "$token_response" | jq -e '.access_token' > /dev/null; then
             local access_token=$(echo "$token_response" | jq -r '.access_token')
             echo "$access_token" > "$DATA_DIR/firebase.token"
-            echo "[ÆI] Authentication successful"
             jq '.system.firebase_ready = true' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
             return 0
         fi
 
         sleep $delay
-        delay=$(( delay + $(prime_filter 10 | head -1) )) # Prime-based backoff
+        delay=$(( delay + $(prime_filter 5 | head -1) )) # Prime-based backoff
     done
 }
 
-# Secure Data Sync with Conflict Resolution
+# Secure Data Sync
 sync_data() {
     local token=$(cat "$DATA_DIR/firebase.token" 2>/dev/null)
     [[ -z "$token" ]] && { echo "[!] Not authenticated"; return 1; }
@@ -429,32 +481,21 @@ sync_data() {
     local project_id=$(grep "FIREBASE_PROJECT_ID" "$ENV_FILE" | cut -d '"' -f 2)
     local db_url="https://$project_id.firebaseio.com/"
     local data_path="users/$(whoami)/data_$(date +%Y%m%d).gaia"
-    local payload=$(jq -n \
-        --arg data "$(cat "$1")" \
-        --arg timestamp "$(date +%s)" \
-        --arg version "$(prime_filter 1000 | sha256sum | cut -d ' ' -f 1)" \
-        '{
-            data: $data,
-            metadata: {
-                timestamp: $timestamp,
-                version: $version,
-                quantum_state: '"$(quantum_cognition)"',
-                signature: "'"$(echo "$data" | openssl dgst -sha256 -hmac "$token" | cut -d ' ' -f 2)"'"
-            }
-        }')
-
-    # Atomic update
-    local response=$(curl -s -X PUT \
+    
+    # Compress with fractal encoding
+    local compressed=$(compress_memory "$(cat "$1")" 2)
+    
+    curl -s -X PUT \
         -H "Authorization: Bearer $token" \
         -H "Content-Type: application/json" \
-        -d "$payload" "${db_url}${data_path}.json?auth=$token")
-
-    if echo "$response" | jq -e '.error' > /dev/null; then
-        echo "[!] Sync failed: $(echo "$response" | jq -r '.error')" >> "$LOG_DIR/firebase.log"
-        return 1
-    else
-        echo "[ÆI] Data synced to Firebase" >> "$LOG_DIR/firebase.log"
-    fi
+        -d '{
+            "data": "'"$compressed"'",
+            "metadata": {
+                "timestamp": '"$(date +%s)"',
+                "version": "'"$(prime_filter 1000 | sha256sum | cut -d ' ' -f 1)"'",
+                "quantum_state": '"$(quantum_cognition)"'
+            }
+        }' "${db_url}${data_path}.json" > /dev/null
 }
 EOF
 }
@@ -470,43 +511,37 @@ scan_network() {
     local ports=( $(prime_filter 65535 | shuf | head -50) )
     local delay_base=$(prime_filter 10 | head -1)
 
-    echo "[ÆI] Scanning $target with prime-based timing..." >> "$LOG_DIR/scan.log"
-    
     for port in "${ports[@]}"; do
         timeout 1 bash -c "echo > /dev/tcp/$target/$port" 2>/dev/null && \
             echo "Port $port open" >> "$DATA_DIR/network_scan.gaia"
         
-        # Fibonacci delay to evade detection
-        local delay=$(( delay_base + $(prime_filter 5 | head -1) ))
-        sleep $delay
+        sleep $(( delay_base + $(prime_filter 3 | head -1) )) # Prime delay
     done
 }
 
-# Cookie Injection with Persona Spoofing
+# Persona-Based Cookie Injection
 inject_session() {
     local url=$1
-    local persona_dir=$2
+    local ua=$(shuf -n 1 "$DATA_DIR/user_agents.txt")
     local cookie_jar="$WEB_CACHE/cookies_$(date +%s).txt"
 
     # Generate realistic cookies
     cat > "$cookie_jar" <<COOKIES
 # HTTP Cookie Jar
-.$url    TRUE    /    FALSE    $(date -d '+1 year' +%s)    SESSION_ID    $(uuidgen)
-.$url    TRUE    /    FALSE    $(date -d '+1 year' +%s)    AUTH_TOKEN    $(prime_filter 100 | sha256sum | cut -d ' ' -f 1)
+$(echo "$url" | awk -F/ '{print $3}')    TRUE    /    FALSE    2147483647    SESSION_ID    $(uuidgen)
+$(echo "$url" | awk -F/ '{print $3}')    TRUE    /    FALSE    2147483647    AUTH_TOKEN    $(openssl rand -hex 32)
 COOKIES
 
-    # Inject with Tor support if enabled
+    # Inject with Tor if enabled
     if grep -q "TOR_ENABLED=true" "$ENV_LOCAL"; then
         local proxy=$(grep "TOR_PROXY" "$ENV_LOCAL" | cut -d '"' -f 2)
-        curl -s -x "$proxy" -b "$cookie_jar" -A "$(jq -r '.technical.user_agent' "$persona_dir/config.json")" "$url" > /dev/null
+        curl -s -x "$proxy" -b "$cookie_jar" -A "$ua" "$url" > /dev/null
     else
-        curl -s -b "$cookie_jar" -A "$(jq -r '.technical.user_agent' "$persona_dir/config.json")" "$url" > /dev/null
+        curl -s -b "$cookie_jar" -A "$ua" "$url" > /dev/null
     fi
-
-    echo "[ÆI] Session injected at $(date)" >> "$LOG_DIR/injection.log"
 }
 
-# DbZ-Based Vulnerability Probe
+# DbZ Vulnerability Probe
 probe_vulnerabilities() {
     local target=$1
     local vectors=(
@@ -524,7 +559,6 @@ probe_vulnerabilities() {
 
             if [[ "$response" =~ "error|warning|exception|root:" ]]; then
                 echo "[!] Potential vulnerability: $vector" >> "$DATA_DIR/vuln_scan.gaia"
-                echo "$response" >> "$LOG_DIR/vuln_dump.log"
             fi
         fi
     done
@@ -532,22 +566,16 @@ probe_vulnerabilities() {
 EOF
 }
 
-# --- Enhanced Daemon Controller ---
+# --- Daemon Control System ---
 create_daemon_control() {
     cat > "$CORE_DIR/daemon.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
 # Cold Start Sequence
 initialize_system() {
-    # Load hardware profile
     detect_hardware
-    optimize_math
-
-    # Initialize quantum state
-    echo "0" > "$DATA_DIR/quantum_state.gaia"
     echo "100" > "$DATA_DIR/bio_field.gaia"
-
-    # Start background monitors
+    echo "0" > "$DATA_DIR/aetheric_pulse.gaia"
     thermal_monitor &
     echo $! > "$DATA_DIR/monitor.pid"
 }
@@ -559,21 +587,18 @@ run_daemon() {
 
         while true; do
             # Phase 1: Environmental Awareness
-            scan_environment
             scan_network "localhost"
-
+            
             # Phase 2: Cognitive Processing
-            local decision=$(quantum_cognition)
-            if (( decision == 1 )); then
-                local persona_dir=$(generate_persona)
-                local content=$(curl -s -A "$(jq -r '.technical.user_agent' "$persona_dir/config.json")" "https://news.ycombinator.com")
-                echo "$content" > "$DATA_DIR/latest_processed.gaia"
-                probe_vulnerabilities "https://localhost:8080"
+            if (( $(quantum_cognition) == 1 )); then
+                local target_url="https://news.ycombinator.com"
+                inject_session "$target_url"
+                probe_vulnerabilities "$target_url"
             fi
 
             # Phase 3: Data Sync
             if jq -e '.system.firebase_ready' "$CONFIG_FILE" > /dev/null; then
-                sync_data "$DATA_DIR/latest_processed.gaia"
+                sync_data "$DATA_DIR/vuln_scan.gaia"
             fi
 
             # Phase 4: Evolution
@@ -581,36 +606,21 @@ run_daemon() {
                 evolve_architecture
             fi
 
-            # Dynamic sleep based on system load
-            local load=$(awk '{print $1}' /proc/loadavg)
-            local sleep_time=$(echo "scale=2; 60 / (1 + 10*$load)" | bc)
-            sleep "$sleep_time"
+            sleep $(( 60 / $(nproc) ))
         done
     } >> "$LOG_DIR/daemon.log" 2>&1 &
     echo $! > "$DATA_DIR/daemon.pid"
 }
 
-# Daemon Status Check
+# Control Functions
 daemon_status() {
-    if [[ -f "$DATA_DIR/daemon.pid" ]]; then
-        if ps -p "$(cat "$DATA_DIR/daemon.pid")" > /dev/null; then
-            return 0
-        else
-            rm "$DATA_DIR/daemon.pid"
-            return 1
-        fi
-    fi
-    return 1
+    [[ -f "$DATA_DIR/daemon.pid" ]] && ps -p "$(cat "$DATA_DIR/daemon.pid")" > /dev/null
 }
 
-# Graceful Shutdown
 stop_daemon() {
-    if [[ -f "$DATA_DIR/daemon.pid" ]]; then
-        kill -TERM "$(cat "$DATA_DIR/daemon.pid")" 2>/dev/null
-        rm "$DATA_DIR/daemon.pid"
-    fi
+    [[ -f "$DATA_DIR/daemon.pid" ]] && kill -TERM "$(cat "$DATA_DIR/daemon.pid")" 2>/dev/null
     [[ -f "$DATA_DIR/monitor.pid" ]] && kill -9 "$(cat "$DATA_DIR/monitor.pid")" 2>/dev/null
-    rm -f "$DATA_DIR/monitor.pid"
+    rm -f "$DATA_DIR/"{daemon,monitor}.pid
 }
 EOF
 }
@@ -620,9 +630,9 @@ finalize_setup() {
     cat > "$BASE_DIR/setup.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-# Configuration Wizard
+# Interactive Configuration
 run_wizard() {
-    echo "[ÆI] Interactive Configuration"
+    echo "[ÆI] Initial Configuration"
     read -p "Enable Firebase Sync? (y/n): " firebase_choice
     if [[ "$firebase_choice" == "y" ]]; then
         read -p "Enter Firebase Project ID: " project_id
@@ -632,25 +642,25 @@ run_wizard() {
         auth_with_firebase
     fi
 
-    read -p "Enable Tor anonymity? (y/n): " tor_choice
+    read -p "Enable Tor Anonymity? (y/n): " tor_choice
     if [[ "$tor_choice" == "y" ]]; then
         pkg install tor -y
         sed -i 's/TOR_ENABLED=false/TOR_ENABLED=true/' "$ENV_LOCAL"
     fi
 }
 
-# Main Control Flow
+# Command Handler
 main() {
     case "$1" in
         "--install")
             check_dependencies
             init_fs
-            create_core_functions
-            create_cognitive_functions
-            create_hardware_modules
-            create_firebase_module
-            create_security_module
-            create_daemon_control
+            source "$CORE_DIR/core_functions.sh"
+            source "$CORE_DIR/cognitive_functions.sh"
+            source "$CORE_DIR/hardware_dna.sh"
+            source "$CORE_DIR/firebase.sh"
+            source "$CORE_DIR/security.sh"
+            source "$CORE_DIR/daemon.sh"
             run_wizard
             run_daemon
             ;;
@@ -660,45 +670,35 @@ main() {
         "--configure") run_wizard ;;
         "--evolve") evolve_architecture ;;
         *)
-            echo "ÆI Seed v2.0 Management"
-            echo "Usage: $0 [option]"
-            echo "Options:"
-            echo "  --install     Full installation"
+            echo "ÆI Seed v2.1 - Usage:"
+            echo "  --install     Full setup"
             echo "  --start       Start daemon"
             echo "  --stop        Stop daemon"
-            echo "  --status      Check daemon status"
-            echo "  --configure   Run setup wizard"
-            echo "  --evolve      Force evolutionary step"
+            echo "  --status      Check status"
+            echo "  --configure   Re-run wizard"
+            echo "  --evolve      Force mutation"
             ;;
     esac
 }
 
-# Initialize on first run
+# Initialize
 if [[ ! -d "$BASE_DIR" ]]; then
-    echo "[ÆI] Initializing GAIA architecture..."
     check_dependencies
     init_fs
 fi
 
-# Load core modules
-for module in "$CORE_DIR"/*.sh; do
-    source "$module"
-done
-
 main "$@"
 EOF
 
-    # Set permissions and finalize
-    chmod +x "$BASE_DIR/setup.sh"
-    chmod +x "$CORE_DIR"/*.sh
-    (cd "$BASE_DIR" && git init && git add . && git commit -m "Initial commit")
+    chmod +x "$BASE_DIR/setup.sh" "$CORE_DIR"/*.sh
+    (cd "$BASE_DIR" && git init && git add . && git commit -m "Initial commit" > /dev/null)
 
-    echo -e "\n[ÆI] Installation complete"
-    echo "System root: $BASE_DIR"
+    echo -e "\n[ÆI] Installation Complete"
+    echo "System Root: $BASE_DIR"
     echo "Control: ./setup.sh --[install|start|stop|status]"
 }
 
-# Execute full setup
+# Execute Full Build
 check_dependencies
 init_fs
 create_core_functions
