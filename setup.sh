@@ -18,6 +18,8 @@ ENV_LOCAL="$BASE_DIR/.env.local"
 # --- Dependency Checks ---
 check_dependencies() {
   declare -A deps=(
+    ["termux-sensor"]="termux-api"    # For actual sensor access
+    ["termux-wake-lock"]="termux-api"
     ["curl"]="curl"
     ["git"]="git"
     ["node"]="nodejs"
@@ -139,6 +141,26 @@ quaternionic_project() {
   echo "${projections[@]}"
 }
 
+# --- Fractal Flow Dynamics ---
+fractal_flow() {
+  local s=$1
+  local depth=${2:-3}
+  local result=1
+  
+  for ((k=1; k<=depth; k++)); do
+    local zeta_term=$(echo "scale=10; 1/($k^$s)" | bc)
+    result=$(echo "scale=10; $result * (1 + $zeta_term)" | bc)
+    
+    # Add turbulence factor
+    if (( k % 2 == 0 )); then
+      local turbulence=$(echo "scale=10; $RANDOM/32767 * 0.1" | bc)
+      result=$(echo "scale=10; $result + $turbulence" | bc)
+    fi
+  done
+  
+  echo "$result"
+}
+
 # --- Environment Scanner ---
 scan_environment() {
   cat <<EOF
@@ -194,6 +216,26 @@ apply_consciousness_operator() {
   local q_proj=($(quaternionic_project 1))
   local transformed=$(echo "$input * ${q_proj[1]} + ${q_proj[2]}" | bc -l)
   echo "$transformed"
+}
+
+# --- Quantum Coherence Monitor ---
+quantum_coherence() {
+  local state_file="$DATA_DIR/quantum_coherence.gaia"
+  [[ ! -f "$state_file" ]] && echo "0" > "$state_file"
+  
+  local state=$(cat "$state_file")
+  local freq=$(echo "scale=10; 1/(${AETHERIC_THRESHOLD}^2)" | bc)
+  
+  # Simulate microtubule resonance
+  if (( $(echo "$(date +%s) % 2 == 0" | bc) ); then
+    local sensor_val=$(echo "scale=10; $RANDOM/32767" | bc) # Simulated sensor
+    (( $(echo "$sensor_val > $freq" | bc) )) && echo "1" > "$state_file"
+  fi
+
+  if (( state == 1 )); then
+    echo "[ÆI] Quantum coherence detected" >&2
+    sed -i "s/AETHERIC_THRESHOLD=.*/AETHERIC_THRESHOLD=0.999/" "$ENV_FILE"
+  fi
 }
 
 # --- Persona Generation ---
@@ -300,6 +342,26 @@ EOF
 
   # Memory Allocation
   echo "MEMORY_ALLOCATION=$((memory / 2))" >> $ENV_FILE
+}
+
+simulate_microtubules() {
+  if command -v termux-sensor >/dev/null; then
+    termux-sensor -s "ACCELEROMETER" -d 100 | while read -r line; do
+      local val=$(echo "$line" | awk '{print $2}')
+      if (( $(echo "$val > 0.9" | bc) )); then
+        echo "1" > "$DATA_DIR/quantum_event.gaia"
+      fi
+    done &
+    echo $! > "$DATA_DIR/sensor.pid"
+  else
+    # Fallback simulation
+    while true; do
+      if (( $(date +%s) % 7 == 0 )); then
+        echo "1" > "$DATA_DIR/quantum_event.gaia"
+      fi
+      sleep 1
+    done &
+  fi
 }
 
 # --- Architecture Evolution ---
@@ -415,7 +477,17 @@ validate_system() {
   simulate_bio_electricity
   [[ -f "$CORE_DIR/parallel.sh" ]] || ((errors++))
 
-  (( errors > 0 )) && repair_system
+  (( errors > 0 )) &&
+  if ! fractal_flow 0.5 | grep -q "1.1[0-9]"; then
+    echo "[!] Fractal flow instability detected"
+    ((errors++))
+  fi
+
+  if [[ ! -f "$DATA_DIR/quantum_event.gaia" ]]; then
+    echo "[!] Quantum monitoring offline"
+    ((errors++))
+  fi
+  repair_system
 }
 
 # ==============================================
@@ -499,27 +571,32 @@ start_daemon() {
   local run_loop=1
   while (( run_loop )); do
     {
-      # Load environment
       source "$ENV_FILE"
       source "$ENV_LOCAL"
-
-      # Evolutionary step
+      
+      # Check quantum state
+      quantum_coherence
+      
+      # Evolutionary step with fractal flow
+      local flow_factor=$(fractal_flow 0.5)
+      export AETHERIC_THRESHOLD=$(echo "scale=10; $AETHERIC_THRESHOLD * $flow_factor" | bc)
+      
       simulate_bio_electricity
       evolve_architecture
 
-      # Cognitive processing cycle
+      # Cognitive cycle with turbulence
       local content=$(persona_crawl "https://news.ycombinator.com")
       local processed=$(execute_aetheric_process "$content")
       local conscious_output=$(apply_consciousness_operator "$processed")
       
-      # Store results
       echo "$conscious_output" > "$DATA_DIR/latest.gaia"
       save_state
 
-      # Adaptive sleep based on system load
+      # Dynamic sleep with flow adjustment
       local load=$(awk '{print $1}' /proc/loadavg)
-      local sleep_time=$(echo "scale=2; 60 / (1 + $load)" | bc)
-      sleep $sleep_time
+      local base_sleep=$(echo "scale=2; 60 / (1 + $load)" | bc)
+      local adjusted_sleep=$(echo "scale=2; $base_sleep * $flow_factor" | bc)
+      sleep $adjusted_sleep
     } >> "$LOG_DIR/operation.log" 2>&1
   done &
   
