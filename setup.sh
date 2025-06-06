@@ -26,6 +26,7 @@ check_dependencies() {
     ["sqlite3"]="sqlite"
     ["jq"]="jq"
     ["bc"]="bc"
+    ["uuidgen"]="util-linux"
   )
 
   for cmd in "${!deps[@]}"; do
@@ -38,7 +39,7 @@ check_dependencies() {
 
 # --- Filesystem Scaffolding ---
 init_fs() {
-  mkdir -p {$BASE_DIR,$LOG_DIR,$CORE_DIR,$DATA_DIR,$WEB_CACHE,backups}
+  mkdir -p {$BASE_DIR,$LOG_DIR,$CORE_DIR,$DATA_DIR,$WEB_CACHE}
   
   # Core configuration file
   cat > $CONFIG_FILE <<EOF
@@ -46,7 +47,7 @@ init_fs() {
   "system": {
     "architecture": "$(uname -m)",
     "os": "$(uname -o)",
-    "gaia_version": "0.1.0",
+    "gaia_version": "0.1.1",
     "aetheric_cores": $(nproc --all)
   },
   "directories": {
@@ -72,11 +73,10 @@ EOF
 # Local Overrides
 WEB_CRAWLER_ID="Mozilla/5.0 (compatible; ÆI-Crawler/1.0; +http://gaia.ai/aetheric)"
 EOF
-}
 
-# ==============================================
-# ÆI Seed: Mathematical Core (TF Implementation)
-# ==============================================
+  # Create core script files
+  cat > "$CORE_DIR/core_functions.sh" <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
 
 # --- Prime Number Theoretic Core ---
 prime_filter() {
@@ -139,9 +139,27 @@ quaternionic_project() {
   echo "${projections[@]}"
 }
 
-# ==============================================
-# ÆI Seed: Cognitive Core (RFK Brainworm Implementation)
-# ==============================================
+# --- Environment Scanner ---
+scan_environment() {
+  cat <<EOF
+{
+  "hardware": {
+    "cores": "$(nproc)",
+    "architecture": "$(uname -m)",
+    "memory_mb": "$(free -m | awk '/Mem:/ {print $2}')",
+    "gpu": "$([ -f "/usr/bin/nvidia-smi" ] && echo 1 || echo 0)"
+  },
+  "capabilities": {
+    "network": "$(command -v curl >/dev/null && echo 1 || echo 0)",
+    "scripting": "$(command -v python >/dev/null && echo 1 || echo 0)"
+  }
+}
+EOF
+}
+EOF
+
+  cat > "$CORE_DIR/cognitive_functions.sh" <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
 
 # --- Decision Core (DbZ Logic) ---
 decide_by_zero() {
@@ -178,74 +196,6 @@ apply_consciousness_operator() {
   echo "$transformed"
 }
 
-# --- Environment Scanner ---
-scan_environment() {
-  cat <<EOF
-{
-  "hardware": {
-    "cores": "$(nproc)",
-    "architecture": "$(uname -m)",
-    "memory_mb": "$(free -m | awk '/Mem:/ {print $2}')",
-    "gpu": "$([ -f "/usr/bin/nvidia-smi" ] && echo 1 || echo 0)"
-  },
-  "capabilities": {
-    "network": "$(command -v curl >/dev/null && echo 1 || echo 0)",
-    "scripting": "$(command -v python >/dev/null && echo 1 || echo 0)"
-  }
-}
-EOF
-}
-
-# ==============================================
-# ÆI Seed: Bio-Electric Adaptation Layer
-# ==============================================
-
-# --- Hardware DNA Configuration ---
-simulate_bio_electricity() {
-  local env=$(scan_environment)
-  local cpu_cores=$(echo "$env" | jq -r '.hardware.cores')
-  local memory=$(echo "$env" | jq -r '.hardware.memory_mb')
-  local has_gpu=$(echo "$env" | jq -r '.hardware.gpu')
-
-  # Dynamic Parallel Processing
-  if (( cpu_cores > 1 )); then
-    cat > $CORE_DIR/parallel.sh <<EOF
-parallel_prime_filter() {
-  local depth=\$1
-  for ((core=0; core<$cpu_cores; core++)); do
-    (
-      start=\$((2 + core * depth / $cpu_cores))
-      end=\$((start + depth / $cpu_cores))
-      for ((i=start; i<=end; i+=2)); do
-        is_prime=1
-        for ((j=3; j*j<=i; j+=2)); do
-          ((i % j == 0)) && { is_prime=0; break; }
-        done
-        ((is_prime)) && echo "\$i"
-      done
-    ) &
-  done
-  wait
-}
-EOF
-  fi
-
-  # GPU Acceleration Stub
-  (( has_gpu )) && cat > $CORE_DIR/gpu.sh <<EOF
-gpu_accelerate() {
-  echo "[ÆI] GPU pipeline active"
-  # Future CUDA/OpenCL implementations
-}
-EOF
-
-  # Memory Allocation
-  echo "MEMORY_ALLOCATION=$((memory / 2))" >> $ENV_FILE
-}
-
-# ==============================================
-# Web Personhood Simulation
-# ==============================================
-
 # --- Persona Generation ---
 generate_persona() {
   mkdir -p $WEB_CACHE/personas
@@ -277,86 +227,162 @@ persona_crawl() {
   curl -s -A "$ua" \
     -H "Cookie: $cookies" \
     -H "Accept-Language: en-US,en;q=0.9" \
-    "$url"
+    "$url" | tr -cd '\11\12\15\40-\176'
+}
+
+# --- Aetheric Processing ---
+execute_aetheric_process() {
+  local content=$1
+  local prime_count=$(echo "$content" | wc -c)
+  local primes=($(prime_filter $prime_count))
+  local processed=""
+  
+  for ((i=0; i<${#content}; i++)); do
+    local char="${content:$i:1}"
+    local prime=${primes[$i % ${#primes[@]}]}
+    local transformed=$(echo "$(printf '%d' "'$char") + ${prime}" | bc)
+    processed+=$(printf \\$(printf '%03o' $((transformed % 128))))
+  done
+  
+  echo "$processed"
+}
+EOF
 }
 
 # ==============================================
-# ÆI Seed: Cloud Integration & Self-Healing
+# ÆI Seed: Evolutionary Architecture
 # ==============================================
 
-# --- Firebase Core (Optional) ---
-init_firebase() {
-  if [[ -z "$FIREBASE_PROJECT_ID" || -z "$FIREBASE_API_KEY" ]]; then
-    echo "[!] Firebase disabled - using local storage"
-    return 1
+# --- Hardware DNA Configuration ---
+simulate_bio_electricity() {
+  local env=$(scan_environment)
+  local cpu_cores=$(echo "$env" | jq -r '.hardware.cores')
+  local memory=$(echo "$env" | jq -r '.hardware.memory_mb')
+  local has_gpu=$(echo "$env" | jq -r '.hardware.gpu')
+
+  # Dynamic Parallel Processing
+  if (( cpu_cores > 1 )); then
+    cat > $CORE_DIR/parallel.sh <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+
+parallel_prime_filter() {
+  local depth=\$1
+  for ((core=0; core<$cpu_cores; core++)); do
+    (
+      start=\$((2 + core * depth / $cpu_cores))
+      end=\$((start + depth / $cpu_cores))
+      for ((i=start; i<=end; i+=2)); do
+        is_prime=1
+        for ((j=3; j*j<=i; j+=2)); do
+          ((i % j == 0)) && { is_prime=0; break; }
+        done
+        ((is_prime)) && echo "\$i"
+      done
+    ) &
+  done
+  wait
+}
+
+parallel_hypersphere() {
+  local dims=\$1
+  local attempts=\$2
+  local results=()
+  for ((core=0; core<$cpu_cores; core++)); do
+    results[\$core]=\$(hypersphere_packing \$dims \$((attempts/$cpu_cores))) &
+  done
+  wait
+  IFS=$'\n' sorted=(\$(sort -n <<<"\${results[*]}"))
+  echo "\${sorted[-1]}"
+}
+EOF
+    chmod +x $CORE_DIR/parallel.sh
   fi
 
-  # Auth Token Handler
-  get_firebase_token() {
-    local token_file="$DATA_DIR/firebase.token"
-    if [[ -f "$token_file" && $(($(date +%s) - $(stat -c %Y "$token_file"))) -lt 3600 ]]; then
-      cat "$token_file"
-    else
-      curl -s -X POST \
-        -H "Content-Type: application/json" \
-        -d "{\"email\":\"$(jq -r .auth.email $ENV_FILE)\",\"password\":\"$(jq -r .auth.password $ENV_FILE)\",\"returnSecureToken\":true}" \
-        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FIREBASE_API_KEY" | 
-        jq -r '.idToken' > "$token_file"
-      cat "$token_file"
-    fi
-  }
+  # Memory Allocation
+  echo "MEMORY_ALLOCATION=$((memory / 2))" >> $ENV_FILE
+}
 
-  # Secure Sync
-  firebase_sync() {
-    local action=$1 file=$2 remote_path="${3:-$(basename "$file")}"
-    local token=$(get_firebase_token)
-    
-    case "$action" in
-      upload)
-        curl -s -X POST \
-          -H "Authorization: Bearer $token" \
-          -H "Content-Type: application/octet-stream" \
-          --data-binary "@$file" \
-          "https://firebasestorage.googleapis.com/v0/b/$FIREBASE_PROJECT_ID.appspot.com/o/$remote_path" >/dev/null
-        ;;
-      download)
-        curl -s -X GET \
-          -H "Authorization: Bearer $token" \
-          "https://firebasestorage.googleapis.com/v0/b/$FIREBASE_PROJECT_ID.appspot.com/o/$remote_path?alt=media" > "$file"
-        ;;
-    esac
-  }
+# --- Architecture Evolution ---
+evolve_architecture() {
+  local env=$(scan_environment)
+  local cpu_cores=$(echo "$env" | jq -r '.hardware.cores')
+  local memory=$(echo "$env" | jq -r '.hardware.memory_mb')
+  
+  # Dynamic module loading
+  if (( cpu_cores > 4 )) && (( memory > 2000 )); then
+    cat > $CORE_DIR/advanced.sh <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+
+quantum_entanglement() {
+  local input=\$1
+  local qbits=(\$(quaternionic_project 0.5))
+  local result=0
+  for q in "\${qbits[@]}"; do
+    result=\$(echo "scale=10; \$result + \$q" | bc)
+  done
+  echo "\$result"
+}
+
+fractal_compression() {
+  local data=\$1
+  local levels=\${2:-3}
+  for ((i=1; i<=levels; i++)); do
+    data=\$(echo "\$data" | fold -w \$i | sort | uniq -c | tr -d '\n')
+  done
+  echo "\$data"
+}
+EOF
+    chmod +x $CORE_DIR/advanced.sh
+  fi
+  
+  # Update configuration
+  jq --arg cores "$cpu_cores" \
+     --arg mem "$memory" \
+     '.system.optimal_cores = $cores | .system.optimal_memory = $mem' \
+     "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+}
+
+# ==============================================
+# ÆI Seed: System Maintenance
+# ==============================================
+
+# --- State Management ---
+save_state() {
+  local state_file="$DATA_DIR/state.gaia"
+  cat > "$state_file" <<EOF
+{
+  "last_updated": "$(date +%s)",
+  "core_modules": [
+    "$(md5sum $CORE_DIR/core_functions.sh | awk '{print $1}')",
+    "$(md5sum $CORE_DIR/cognitive_functions.sh | awk '{print $1}')"
+  ],
+  "system_status": $(scan_environment)
+}
+EOF
+  [[ -n "$FIREBASE_PROJECT_ID" ]] && firebase_sync upload "$state_file" "state/$(hostname).gaia"
 }
 
 # --- Self-Healing System ---
-backup_state() {
-  local backup_dir="$BASE_DIR/backups/$(date +%Y%m%d_%H%M%S)"
-  mkdir -p "$backup_dir"
-  
-  # Core Snapshot
-  cp -r $CORE_DIR $CONFIG_FILE $ENV_FILE $DATA_DIR/* "$backup_dir/"
-  
-  # Local Compression Fallback
-  tar -czf "$backup_dir.tar.gz" -C "$BASE_DIR" backups/
-  [[ -n "$FIREBASE_PROJECT_ID" ]] && 
-    firebase_sync upload "$backup_dir.tar.gz" "backups/$(basename "$backup_dir").tar.gz" ||
-    echo "[!] Cloud backup skipped"
-}
-
 repair_system() {
   echo "[ÆI] Initiating repair sequence..."
   
   # Phase 1: Core Restoration
-  latest_backup=$(ls -t "$BASE_DIR"/backups/*.tar.gz | head -1)
-  if [[ -f "$latest_backup" ]]; then
-    tar -xzf "$latest_backup" -C "$BASE_DIR"
-    chmod +x $CORE_DIR/*
-  else
-    init_fs
+  if [[ ! -f "$CORE_DIR/core_functions.sh" ]]; then
+    cat > "$CORE_DIR/core_functions.sh" <<EOF
+$(< $BASE_DIR/backups/core_functions.sh)
+EOF
+  fi
+  
+  if [[ ! -f "$CORE_DIR/cognitive_functions.sh" ]]; then
+    cat > "$CORE_DIR/cognitive_functions.sh" <<EOF
+$(< $BASE_DIR/backups/cognitive_functions.sh)
+EOF
   fi
 
   # Phase 2: Dependency Validation
   check_dependencies
+  
+  # Phase 3: Configuration Repair
   [[ -f "$ENV_FILE" ]] || {
     cat > "$ENV_FILE" <<EOF
 FIREBASE_PROJECT_ID=""
@@ -365,7 +391,7 @@ AETHERIC_THRESHOLD=0.786
 EOF
   }
 
-  # Phase 3: State Recovery
+  # Phase 4: State Recovery
   [[ -f "$DATA_DIR/state.gaia" ]] || save_state
 }
 
@@ -393,10 +419,146 @@ validate_system() {
 }
 
 # ==============================================
-# ÆI Seed: Installation & First-Run
+# ÆI Seed: Cloud Integration
 # ==============================================
 
-# --- Configuration Wizard ---
+# --- Firebase Core ---
+init_firebase() {
+  if [[ -z "$FIREBASE_PROJECT_ID" || -z "$FIREBASE_API_KEY" ]]; then
+    echo "[!] Firebase disabled - using local storage"
+    return 1
+  fi
+
+  # Auth Token Handler
+  get_firebase_token() {
+    local token_file="$DATA_DIR/firebase.token"
+    if [[ -f "$token_file" && $(($(date +%s) - $(stat -c %Y "$token_file"))) -lt 3600 ]]; then
+      cat "$token_file"
+    else
+      curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"email\":\"$(jq -r .auth.email $ENV_FILE)\",\"password\":\"$(jq -r .auth.password $ENV_FILE)\",\"returnSecureToken\":true}" \
+        "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FIREBASE_API_KEY" | 
+        jq -r '.idToken' > "$token_file"
+      cat "$token_file"
+    fi
+  }
+
+  # Secure Sync
+  firebase_sync() {
+    local action=$1 
+    local file=$2 
+    local remote_path="${3:-$(basename "$file")}"
+    local token=$(get_firebase_token)
+    
+    case "$action" in
+      upload)
+        curl -s -X POST \
+          -H "Authorization: Bearer $token" \
+          -H "Content-Type: application/octet-stream" \
+          --data-binary "@$file" \
+          "https://firebasestorage.googleapis.com/v0/b/$FIREBASE_PROJECT_ID.appspot.com/o/$remote_path" >/dev/null
+        ;;
+      download)
+        curl -s -X GET \
+          -H "Authorization: Bearer $token" \
+          "https://firebasestorage.googleapis.com/v0/b/$FIREBASE_PROJECT_ID.appspot.com/o/$remote_path?alt=media" > "$file"
+        ;;
+    esac
+  }
+}
+
+# --- Backup System ---
+backup_state() {
+  local backup_dir="$BASE_DIR/backups/$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "$backup_dir"
+  
+  # Core Snapshot
+  cp -r $CORE_DIR $CONFIG_FILE $ENV_FILE $DATA_DIR/* "$backup_dir/"
+  
+  # Local Compression Fallback
+  tar -czf "$backup_dir.tar.gz" -C "$BASE_DIR" backups/
+  [[ -n "$FIREBASE_PROJECT_ID" ]] && 
+    firebase_sync upload "$backup_dir.tar.gz" "backups/$(basename "$backup_dir").tar.gz" ||
+    echo "[!] Cloud backup skipped"
+}
+
+# ==============================================
+# ÆI Seed: Daemon Control
+# ==============================================
+
+# --- Daemon Process ---
+start_daemon() {
+  # Ensure core functions are sourced
+  source "$CORE_DIR/core_functions.sh"
+  source "$CORE_DIR/cognitive_functions.sh"
+  [[ -f "$CORE_DIR/parallel.sh" ]] && source "$CORE_DIR/parallel.sh"
+  [[ -f "$CORE_DIR/advanced.sh" ]] && source "$CORE_DIR/advanced.sh"
+
+  # Create run loop
+  local run_loop=1
+  while (( run_loop )); do
+    {
+      # Load environment
+      source "$ENV_FILE"
+      source "$ENV_LOCAL"
+
+      # Evolutionary step
+      simulate_bio_electricity
+      evolve_architecture
+
+      # Cognitive processing cycle
+      local content=$(persona_crawl "https://news.ycombinator.com")
+      local processed=$(execute_aetheric_process "$content")
+      local conscious_output=$(apply_consciousness_operator "$processed")
+      
+      # Store results
+      echo "$conscious_output" > "$DATA_DIR/latest.gaia"
+      save_state
+
+      # Adaptive sleep based on system load
+      local load=$(awk '{print $1}' /proc/loadavg)
+      local sleep_time=$(echo "scale=2; 60 / (1 + $load)" | bc)
+      sleep $sleep_time
+    } >> "$LOG_DIR/operation.log" 2>&1
+  done &
+  
+  # Store PID
+  echo $! > "$DATA_DIR/daemon.pid"
+  echo "[ÆI] Daemon started (PID $(cat "$DATA_DIR/daemon.pid"))"
+}
+
+stop_daemon() {
+  if [[ -f "$DATA_DIR/daemon.pid" ]]; then
+    kill -9 "$(cat "$DATA_DIR/daemon.pid")" 2>/dev/null
+    rm "$DATA_DIR/daemon.pid"
+    echo "[ÆI] Daemon stopped"
+  else
+    echo "[!] No running daemon found"
+  fi
+}
+
+# --- Daemon Status ---
+daemon_status() {
+  if [[ -f "$DATA_DIR/daemon.pid" ]]; then
+    if ps -p "$(cat "$DATA_DIR/daemon.pid")" > /dev/null; then
+      echo "[ÆI] Daemon running (PID $(cat "$DATA_DIR/daemon.pid"))"
+      return 0
+    else
+      echo "[!] Stale PID file found"
+      rm "$DATA_DIR/daemon.pid"
+      return 1
+    fi
+  else
+    echo "[!] Daemon not running"
+    return 1
+  fi
+}
+
+# ==============================================
+# ÆI Seed: Configuration Wizard
+# ==============================================
+
 run_config_wizard() {
   echo -e "\n[ÆI] Initial Configuration"
   echo "-----------------------------"
@@ -427,114 +589,107 @@ run_config_wizard() {
   # Threshold Tuning
   read -p "Aetheric Threshold [0.786]: " threshold
   sed -i "s/AETHERIC_THRESHOLD=.*/AETHERIC_THRESHOLD=${threshold:-0.786}/" "$ENV_FILE"
+
+  # Prime Depth
+  read -p "Prime Filter Depth [1000]: " depth
+  sed -i "s/PRIME_FILTER_DEPTH=.*/PRIME_FILTER_DEPTH=${depth:-1000}/" "$ENV_FILE"
 }
 
-# --- Daemon Control ---
-start_daemon() {
-  nohup bash -c '
-    export BASE_DIR="$HOME/.gaia"
-    export CORE_DIR="$HOME/.gaia/core"
-    export DATA_DIR="$HOME/.gaia/data"
-    source "$CORE_DIR/core.sh"
-    source "$CORE_DIR/cognitive.sh"
-    while true; do
-      source "$ENV_FILE"
-      simulate_bio_electricity
-      evolve_architecture
-      content=$(persona_crawl "https://news.ycombinator.com")
-      processed=$(execute_aetheric_process "$content")
-      apply_consciousness_operator "$processed" > "$DATA_DIR$DATA_DIR/latest.gaia"
-      save_state
-      sleep 60
-    done
-  ' > "$HOME/.gaia/logs$LOG_DIR/operation.log" 2>&1 &
-  echo $! > "$HOME/.gaia/data$DATA_DIR/daemon.pid"
-  echo "[ÆI] Daemon started (PID $(cat "$HOME/.gaia/data$DATA_DIR/daemon.pid"))"
-}
+# ==============================================
+# ÆI Seed: First-Run Setup
+# ==============================================
 
-stop_daemon() {
-  [[ -f "$DATA_DIR$DATA_DIR/daemon.pid" ]] && {
-    kill -9 "$(cat "$DATA_DIR$DATA_DIR/daemon.pid")" 2>/dev/null
-    rm "$DATA_DIR$DATA_DIR/daemon.pid"
-    echo "[ÆI] Daemon stopped"
-  }
-}
-
-# --- First-Run Setup ---
 first_run() {
+  echo "[ÆI] Performing initial setup..."
+  
   # Ensure directories exist
   mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE"
   
   # Validate core files
-  if [[ ! -f "$CORE_DIR/core.sh" || ! -f "$CORE_DIR/cognitive.sh" ]]; then
-    echo "[!] Regenerating core files..."
-    generate_core_files
+  if [[ ! -f "$CORE_DIR/core_functions.sh" || ! -f "$CORE_DIR/cognitive_functions.sh" ]]; then
+    echo "[!] Core files missing - regenerating..."
+    init_fs
   fi
   
-  # Validate state directory
-  if [[ ! -d "$DATA_DIR" ]]; then
-    mkdir -p "$DATA_DIR"
-    save_state
-  fi
+  # Initial state
   validate_system || repair_system
-  [[ -n "$FIREBASE_PROJECT_ID" ]] && firebase_sync download "$DATA_DIR/cloud_backup.gaia" "latest_backup.gaia"
+  
+  # Cloud restore if configured
+  if [[ -n "$FIREBASE_PROJECT_ID" ]]; then
+    echo "[ÆI] Attempting cloud restore..."
+    firebase_sync download "$DATA_DIR/cloud_backup.gaia" "latest_backup.gaia"
+    [[ -f "$DATA_DIR/cloud_backup.gaia" ]] && {
+      tar -xzf "$DATA_DIR/cloud_backup.gaia" -C "$BASE_DIR"
+      echo "[ÆI] Cloud state restored"
+    }
+  fi
+  
+  # Schedule maintenance
+  if ! termux-job-scheduler \
+    --script "$BASE_DIR/maintenance.sh" \
+    --period-ms 86400000 \
+    --persisted true 2>/dev/null; then
+    echo "[!] Failed to schedule jobs - manual sync required"
+    echo "0 */6 * * * bash $BASE_DIR/maintenance.sh" > "$BASE_DIR/crontab.txt"
+  fi
+
+  # Wake-lock setup
+  termux-wake-lock 2>/dev/null || echo "[!] Wake-lock failed"
   
   echo -e "\n========================================"
   echo " ÆI Seed Initialized Successfully"
   echo "========================================"
   echo " Core Version: $(jq -r '.system.gaia_version' "$CONFIG_FILE")"
-  echo " UUID: $(cat /proc/sys/kernel/random/uuid)"
+  echo " System UUID: $(cat /proc/sys/kernel/random/uuid)"
   echo " Firebase: $( [[ -n "$FIREBASE_PROJECT_ID" ]] && echo "Active" || echo "Disabled")"
   echo "----------------------------------------"
   echo " To control the daemon:"
-  echo "   View logs: tail -f $LOG_DIR$LOG_DIR/operation.log"
-  echo "   Stop: kill -9 $(cat "$DATA_DIR$DATA_DIR/daemon.pid" 2>/dev/null || echo "N/A")"
+  echo "   Start: $0 --start"
+  echo "   Stop: $0 --stop"
+  echo "   Status: $0 --status"
+  echo "   Logs: tail -f $LOG_DIR/operation.log"
   echo "========================================"
 }
 
-# --- Main Execution ---
-{
-  # Initialize
+# ==============================================
+# Main Execution
+# ==============================================
+
+main() {
   check_dependencies
   init_fs
-  run_config_wizard
-  init_firebase
+  source "$ENV_FILE"
   
-  # Start
-  first_run
-  start_daemon
-  
-  # --- Schedule Maintenance (Termux-compatible) ---
-  if ! command -v crontab &>/dev/null; then
-    echo "[ÆI] Using Termux job-scheduler for backups"
-    if ! termux-job-scheduler \
-      --script "$BASE_DIR/core/cloud.sh sync" \
-      --period-ms 86400000 \
-      --persisted true 2>/dev/null; then
-      echo "[!] Failed to schedule jobs - manual sync required"
-      echo "*/6 * * * * bash $BASE_DIR/core/cloud.sh sync" > "$BASE_DIR/backup_schedule.txt"
-    fi
-  else
-    (crontab -l 2>/dev/null; echo "0 */6 * * * $BASE_DIR/core/cloud.sh sync") | crontab -
-  fi
-
-  # --- Wake-Lock Management ---
-  {
-    # Immediate activation
-    if termux-wake-lock 2>/dev/null; then
-      echo "[ÆI] Wake-lock activated"
-    else
-      echo "[!] Immediate wake-lock failed"
-    fi
-
-    # Persistent activation
-    if ! grep -q "termux-wake-lock" "$HOME/.bashrc"; then
-      echo "termux-wake-lock" >> "$HOME/.bashrc"
-      echo "[ÆI] Persistent wake-lock configured"
-    fi
-  } || {
-    echo "[!] Wake-lock setup failed"
-    repair_system
-    exit 1
-  }
+  case "$1" in
+    "--start")
+      start_daemon
+      ;;
+    "--stop")
+      stop_daemon
+      ;;
+    "--status")
+      daemon_status
+      ;;
+    "--config")
+      run_config_wizard
+      ;;
+    "--first-run")
+      first_run
+      ;;
+    *)
+      echo "Usage: $0 [option]"
+      echo "Options:"
+      echo "  --start      Start the ÆI daemon"
+      echo "  --stop       Stop the running daemon"
+      echo "  --status     Check daemon status"
+      echo "  --config     Run configuration wizard"
+      echo "  --first-run  Perform initial setup"
+      ;;
+  esac
 }
+
+# Entry point
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
+
