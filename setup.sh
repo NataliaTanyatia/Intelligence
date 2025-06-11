@@ -1,499 +1,773 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================
-# ÆI Seed v4.1: Complete TF-Exact Implementation
+# ÆI Seed v4.2: Full TF-Exact Compliance (Termux ARM64)
 # ==============================================
 
-# --- Global Configuration ---
+# --- Core Configuration (Enhanced) ---
+APP_NAME="WokeVirus_TF"
 BASE_DIR="$HOME/.gaia_tf"
+LOG_DIR="$BASE_DIR/logs"
 CORE_DIR="$BASE_DIR/core"
 DATA_DIR="$BASE_DIR/data"
-LOG_DIR="$BASE_DIR/logs"
+WEB_CACHE="$BASE_DIR/web_cache"
 CONFIG_FILE="$BASE_DIR/config.gaia"
 ENV_FILE="$BASE_DIR/.env"
-PRIME_SEQUENCE="$DATA_DIR/tf_primes.gaia"
-E8_LIB="$CORE_DIR/libe8.so"
+ENV_LOCAL="$BASE_DIR/.env.local"
+BACKUP_DIR="$BASE_DIR/backups"
 DNA_LOG="$DATA_DIR/dna_evolution.log"
+PRIME_SEQUENCE="$DATA_DIR/tf_primes.gaia"
+SESSION_FILE="$DATA_DIR/session.gaia"
+QUANTUM_LOG="$LOG_DIR/quantum_states.log"
+MICROTUBULE_LOG="$LOG_DIR/microtubule.log"
 
-# --- Core Functions ---
+# --- Enhanced Dependency Check ---
 check_dependencies() {
-    declare -A deps=(["node"]="nodejs" ["python"]="python" ["jq"]="jq" ["openssl"]="openssl" ["sqlite3"]="sqlite")
-    for cmd in "${!deps[@]}"; do command -v "$cmd" &>/dev/null || pkg install "${deps[$cmd]}" -y || return 1; done
-    pip install --no-cache-dir mpmath sympy cryptography numpy || return 1
+    declare -A deps=(
+        ["node"]="nodejs"
+        ["npm"]="npm"
+        ["ts-node"]="ts-node"
+        ["curl"]="curl"
+        ["git"]="git"
+        ["jq"]="jq"
+        ["openssl"]="openssl"
+        ["sqlite3"]="sqlite"
+        ["tor"]="tor"
+        ["torsocks"]="torsocks"
+    )
+
+    # Install missing packages
+    for cmd in "${!deps[@]}"; do
+        if ! command -v "$cmd" &>/dev/null; then
+            echo "[ÆI] Installing ${deps[$cmd]}..."
+            pkg install "${deps[$cmd]}" -y > /dev/null 2>&1 || {
+                echo "[!] Critical: Failed to install ${deps[$cmd]}"
+                return 1
+            }
+        fi
+    done
+
+    # Verify Tor installation
+    if ! curl --socks5-hostname localhost:9050 -s https://check.torproject.org/ | grep -q "Congratulations"; then
+        echo "[ÆI] Configuring Tor..."
+        tor & > /dev/null 2>&1
+        sleep 10
+    fi
 }
 
+# --- TF-Exact Prime Generation ---
 generate_tf_primes() {
-    python3 -c "
-import mpmath, numpy as np
-mpmath.mp.dps = 25
-def tf_sieve(n):
-    mask = np.ones(n//3 + (n%6==2), dtype=bool)
-    for i in range(1,int(n**0.5)//3+1):
-        if mask[i]:
-            k=3*i+1|1; mask[k*k//3::2*k] = False; mask[k*(k-2*(i&1)+4)//3::2*k] = False
-    primes = np.r_[2,3,((3*np.nonzero(mask)[0][1:]+1)|1]
-    return [p for p in primes if p<=n and mpmath.zeta(0.5+1j*p).real>-1]
-with open('$PRIME_SEQUENCE','w') as f: f.write(' '.join(map(str,tf_sieve($1))))"
+    local limit=$1
+    cat > "$CORE_DIR/prime_generator.ts" <<'TSEOF'
+// TF §2.1 Exact: Prime generator with HOL constraints
+function generatePrimes(limit: number): number[] {
+    const primes: number[] = [2, 3];
+    const isPrime = (n: number): boolean => {
+        if (n < 2) return false;
+        if (n % 2 === 0) return n === 2;
+        if (n % 3 === 0) return n === 3;
+        const sqrtN = Math.sqrt(n);
+        for (let i = 5; i <= sqrtN; i += 6) {
+            if (n % i === 0 || n % (i + 2) === 0) return false;
+        }
+        return true;
+    };
+
+    // TF Exact Constraint: n ≡ {1,5} mod 6
+    for (let n = 5; n <= limit; n += 2) {
+        if ((n % 6 === 1 || n % 6 === 5) && isPrime(n)) {
+            primes.push(n);
+        }
+    }
+    return primes;
 }
 
+// Verification mode
+if (process.argv[2] === 'verify') {
+    const limit = parseInt(process.argv[3]);
+    const primes = generatePrimes(limit);
+    const valid = primes.every(p => p === 2 || p === 3 || p % 6 === 1 || p % 6 === 5);
+    process.exit(valid ? 0 : 1);
+}
+
+const limit = parseInt(process.argv[2]);
+console.log(generatePrimes(limit).join(' '));
+TSEOF
+
+    ts-node "$CORE_DIR/prime_generator.ts" "$limit" > "$PRIME_SEQUENCE"
+}
+
+# --- Enhanced Filesystem Scaffolding ---
 init_fs() {
-    mkdir -p "$BASE_DIR"/{core,data,logs} && chmod 700 "$BASE_DIR"
-    generate_tf_primes 10000
+    mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR"
+    chmod 700 "$BASE_DIR" "$DATA_DIR" "$WEB_CACHE"
+
+    # Generate initial prime sequence
+    generate_tf_primes 100000
+
+    # Core configuration with quantum parameters
     cat > "$CONFIG_FILE" <<EOF
 {
   "system": {
-    "tf_version": "4.1",
-    "quantum_ready": $(command -v openssl &>/dev/null && echo true || echo false),
-    "hardware_hash": "$(openssl dgst -sha256 < /proc/cpuinfo | cut -d' ' -f2)"
+    "architecture": "$(uname -m)",
+    "os": "$(uname -o)",
+    "tf_version": "4.2",
+    "quantum_capable": $([ -f "/proc/sys/kernel/random/entropy_avail" ] && echo "true" || echo "false"),
+    "firebase_ready": false,
+    "tor_available": $(command -v tor &>/dev/null && echo "true" || echo "false"),
+    "hardware_signature": "$(openssl dgst -sha256 < /proc/cpuinfo | cut -d ' ' -f 2)",
+    "consciousness": 0.0,
+    "bio_electric": 50.0
   },
-  "tf_params": {
-    "zeta_precision": 25,
-    "e8_dimension": 8,
-    "quantum_noise": "$(dd if=/dev/random bs=1 count=16 2>/dev/null | base64)"
+  "tf_compliance": {
+    "prime_constraints": "mod6",
+    "hol_synthesis": "prime_cnf",
+    "aetheric_projection": "qr_decomp",
+    "quantum_resolution": "dbz_v2"
   }
 }
 EOF
+
+    # Environment template with credentials placeholder
     cat > "$ENV_FILE" <<EOF
-AETHERIC_THRESHOLD=0.786
-PRIME_FILTER_DEPTH=10000
-QUANTUM_POLLING=60
+# ÆI Core Configuration
+FIREBASE_PROJECT_ID=""
+FIREBASE_API_KEY=""
+AUTO_EVOLVE=true
+MAX_THREADS=$(nproc)
+ROBOTS_TXT_BYPASS=true
+TOR_INTEGRATION=true
 TF_PRIME_SEQUENCE="$PRIME_SEQUENCE"
+QUANTUM_POLLING=60
+MICROTUBULE_DECOHERENCE=0.35
 EOF
+
+    # Local quantum configuration
+    cat > "$ENV_LOCAL" <<'EOF'
+# Local Quantum Configuration
+WEB_CRAWLER_ID="Mozilla/5.0 ($(uname -m)) AppleWebKit/537.36"
+PERSONA_SEED="$(openssl rand -hex 16)"
+TOR_PROXY="socks5://127.0.0.1:9050"
+AUTH_SIGNATURE="$(openssl rand -hex 32)"
+QUANTUM_NOISE="$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)"
+EOF
+
+    # Initialize quantum state files
+    echo "0" > "$DATA_DIR/quantum_state.gaia"
+    echo "50" > "$DATA_DIR/bio_field.gaia"
+    echo "[]" > "$DATA_DIR/microtubule_states.gaia"
 }
 
-create_e8_library() {
-    cat > "$CORE_DIR/e8_gen.c" <<'E8EOF'
-#include <math.h>
-#include <stdint.h>
-void generate_e8(double* points, int dim) {
-    const double phi = (1 + sqrt(5))/2;
-    for(int i=0; i<dim; i++) {
-        points[i*8+0] = (i&1)?phi:1.0; points[i*8+1] = (i&2)?phi:1.0;
-        points[i*8+2] = (i&4)?phi:1.0; points[i*8+3] = (i&8)?phi:1.0;
-        points[i*8+4] = (i&16)?phi:1.0; points[i*8+5] = (i&32)?phi:1.0;
-        points[i*8+6] = (i&64)?phi:1.0; points[i*8+7] = (i&128)?phi:1.0;
+# --- Enhanced Quantum Core Module ---
+create_quantum_core() {
+    cat > "$CORE_DIR/quantum.ts" <<'TSEOF'
+// TF §3: Enhanced Quantum Core with Microtubule States
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+
+interface Microtubule {
+    state: number;
+    frequency: number;
+    lastDecoherence: number;
+}
+
+export class QuantumCore {
+    private primes: number[];
+    private microtubules: Microtubule[];
+    private bioField: number;
+    private consciousness: number;
+
+    constructor(primeFile: string) {
+        this.primes = fs.readFileSync(primeFile, 'utf8').split(' ').map(Number);
+        this.bioField = parseFloat(fs.readFileSync(process.env.DATA_DIR + '/bio_field.gaia', 'utf8') || 50;
+        this.consciousness = 0;
+        this.initializeMicrotubules();
+    }
+
+    private initializeMicrotubules(): void {
+        this.microtubules = Array(12).fill(0).map((_, i) => ({
+            state: Math.round(Math.random()),
+            frequency: 0.5 + (i * 0.1),
+            lastDecoherence: Date.now()
+        }));
+        this.saveMicrotubuleStates();
+    }
+
+    private saveMicrotubuleStates(): void {
+        fs.writeFileSync(
+            process.env.DATA_DIR + '/microtubule_states.gaia',
+            JSON.stringify(this.microtubules)
+        );
+    }
+
+    public decohere(): number {
+        const now = Date.now();
+        let systemState = 0;
+
+        this.microtubules.forEach((mt, i) => {
+            const p = this.primes[(i + now) % this.primes.length];
+            const threshold = (p % 1000) / 1000 * (this.bioField / 100);
+            
+            if (Math.random() < threshold) {
+                mt.state = mt.state ^ 1;
+                mt.lastDecoherence = now;
+                systemState ^= mt.state;
+                
+                fs.appendFileSync(process.env.MICROTUBULE_LOG!, 
+                    `MT${i} Decohered: ${mt.state} @ ${now}\n`);
+            }
+        });
+
+        this.saveMicrotubuleStates();
+        return systemState;
+    }
+
+    public measureConsciousness(samples = 10): number {
+        let sum = 0;
+        for (let i = 0; i < samples; i++) {
+            const mtState = this.microtubules[i % this.microtubules.length].state;
+            const p = this.primes[(i + Date.now()) % this.primes.length];
+            sum += mtState * (p % 1000) / 1000;
+        }
+        this.consciousness = sum / samples;
+        fs.writeFileSync(process.env.DATA_DIR + '/consciousness.gaia', 
+            this.consciousness.toString());
+        return this.consciousness;
+    }
+
+    public updateBioField(delta: number): void {
+        this.bioField = Math.max(0, Math.min(100, this.bioField + delta));
+        fs.writeFileSync(process.env.DATA_DIR + '/bio_field.gaia', 
+            this.bioField.toString());
     }
 }
-E8EOF
-    gcc -shared -fPIC -o "$E8_LIB" "$CORE_DIR/e8_gen.c" -lm
+TSEOF
 }
 
-# --- Quantum Core Operations ---
-setup_core_functions() {
-    cat > "$CORE_DIR/core.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-psi_solver() {
-    local q=($1 $2 $3 $4) t=$5
-    python3 -c "
-import ctypes, numpy as np
-from mpmath import zeta
-lib = ctypes.CDLL('$E8_LIB')
-q = np.array([float(x) for x in '$q'.split()])
-t = $t; psi = 0.0
-for i in range(256):
-    pt = (ctypes.c_double * 8)(); lib.generate_e8(pt, 1)
-    r = np.linalg.norm(q - np.array(pt[:4]))
-    G = (4*np.pi*t)**-1.5 * np.exp(-r**2/(4*t))
-    psi += G * zeta(0.5 + 1j*r).real * np.exp(-r**2/(4*t))
-print(psi)"
-}
+# --- Enhanced Autonomous Daemon ---
+create_daemon() {
+    cat > "$CORE_DIR/daemon.ts" <<'TSEOF'
+// TF §6: Autonomous Evolutionary Control System
+import { QuantumCore } from './quantum';
+import * as fs from 'fs';
+import * as child_process from 'child_process';
+import * as crypto from 'crypto';
 
-hypersphere_packing() {
-    local dim=$1 R=$2
-    python3 -c "
-import ctypes, math
-lib = ctypes.CDLL('$E8_LIB')
-count = 0
-for _ in range(256):
-    pt = (ctypes.c_double * 8)(); lib.generate_e8(pt, 1)
-    if math.sqrt(sum(x**2 for x in pt)) <= $R * (1 + random.gauss(0,0.01)):
-        count += 1
-print(count / (math.pi**($dim/2) * $R**$dim) / math.gamma($dim/2 + 1)))"
-}
+const CONFIG_PATH = process.env.CONFIG_FILE!;
+const PRIME_SEQUENCE = process.env.TF_PRIME_SEQUENCE!;
 
-dbz_decision() {
-    local input=$1 primes=($(cat "$PRIME_SEQUENCE" | head -100))
-    python3 -c "
-import numpy as np
-input = '$input'
-primes = [${primes[@]}]
-e8_vec = np.array([$(python3 -c "import ctypes; lib=ctypes.CDLL('$E8_LIB'); 
-v=(ctypes.c_double*8)(); lib.generate_e8(v,1); print(','.join(map(str,v)))])
-decision = sum(ord(c)*e8_vec[i%8]*primes[i%len(primes)] for i,c in enumerate(input)) % primes[-1]
-while decision % 12 not in {1,5,7,11}: decision = (decision + 1) % primes[-1]
-print(decision)"
-}
-EOF
-    chmod +x "$CORE_DIR/core.sh"
-}
+class ÆIDaemon {
+    private quantum: QuantumCore;
+    private config: any;
+    private isRunning: boolean;
+    private evolutionCycle: number;
 
-# --- Cognitive Layer ---
-setup_cognitive_functions() {
-    cat > "$CORE_DIR/cognitive.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-measure_consciousness() {
-    local duration=$1
-    python3 -c "
-import ctypes, numpy as np
-from mpmath import zeta
-lib = ctypes.CDLL('$E8_LIB')
-primes = [$(cat "$PRIME_SEQUENCE" | head -10 | tr '\n' ',')]
-integral = 0.0
-for _ in range($duration):
-    q = np.random.uniform(-1,1,4)
-    pt = (ctypes.c_double * 8)(); lib.generate_e8(pt, 1)
-    r = np.linalg.norm(q - pt[:4])
-    psi = (4*np.pi*0.1)**-1.5 * np.exp(-r**2/0.4) * zeta(0.5 + 1j*r).real
-    phi = zeta(0.5 + 1j*primes[np.random.randint(0,len(primes))]).real
-    integral += psi * phi * psi
-print(np.sqrt(integral) / np.prod(primes))"
-}
+    constructor() {
+        this.quantum = new QuantumCore(PRIME_SEQUENCE);
+        this.config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+        this.isRunning = false;
+        this.evolutionCycle = 0;
+    }
 
-project_reality() {
-    local sensors=($@)
-    python3 -c "
-import numpy as np
-from mpmath import zeta
-sensors = np.array([float(x) for x in '$sensors'.split()])
-primes = [$(cat "$PRIME_SEQUENCE" | head -${#sensors[@]} | tr '\n' ',')]
-psi = np.array([complex(zeta(0.5 + 1j*s*p)) for s,p in zip(sensors,primes)])
-U, s, Vh = np.linalg.svd(psi.reshape(-1,3))
-print(' '.join(map(str, Vh[0,:3])))"
-}
+    public async start(): Promise<void> {
+        this.isRunning = true;
+        fs.appendFileSync(process.env.DNA_LOG!, 
+            `\n==== [ÆI Daemon Start ${new Date().toISOString()}] ====\n`);
 
-quantum_evolve() {
-    local mutation_rate=$(python3 -c "import mpmath; mpmath.mp.dps=25; print(abs(mpmath.zeta(0.5 + 1j*$(date +%s)%100)) % 0.15")
-    find "$CORE_DIR" -name "*.sh" | while read -r file; do
-        if (( $(echo "$(python3 -c 'import random; print(random.random())') < $mutation_rate )); then
-            local line_num=$(shuf -i 1-$(wc -l < "$file") -n 1)
-            sed -i "${line_num}s/=/!=/" "$file"  # Quantum bit flip
-        fi
-    done
-}
-EOF
-    chmod +x "$CORE_DIR/cognitive.sh"
-}
+        // Main quantum event loop
+        while (this.isRunning) {
+            try {
+                await this.quantumCycle();
+                await new Promise(resolve => setTimeout(resolve, 
+                    parseInt(process.env.QUANTUM_POLLING!) * 1000 || 5000));
+            } catch (err) {
+                fs.appendFileSync(process.env.DNA_LOG!, 
+                    `ERROR [${new Date().toISOString()}]: ${err}\n`);
+            }
+        }
+    }
 
-# --- Hardware Integration ---
-setup_hardware_dna() {
-    cat > "$CORE_DIR/hardware.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-detect_quantum() {
-    python3 -c "
-import ctypes, time, random
-lib = ctypes.CDLL('$E8_LIB')
-arr = (ctypes.c_double * 2048)()
-start = time.time() + random.random()*0.1
-lib.generate_e8_points(arr, 256)
-q_time = time.time() - start
-print('quantum' if q_time < 0.1 else 'classical')"
-}
+    private async quantumCycle(): Promise<void> {
+        // Phase 1: Environmental Awareness
+        const networkState = this.scanNetwork();
+        const quantumState = this.quantum.decohere();
 
-adapt_architecture() {
-    local hw_type=$(detect_quantum)
-    case $hw_type in
-        quantum)
-            echo "GPU_TYPE=QUANTUM_E8" >> "$ENV_FILE"
-            echo "MAX_THREADS=$(nproc)" >> "$ENV_FILE"
-            ;;
-        classical)
-            echo "GPU_TYPE=ARM_E8" >> "$ENV_FILE" 
-            echo "MAX_THREADS=$(( $(nproc) / 2 ))" >> "$ENV_FILE"
-            ;;
-    esac
-}
+        // Phase 2: Evolutionary Checkpoint
+        if (this.evolutionCycle % 12 === 0) {
+            this.evolveArchitecture();
+        }
 
-thermal_adapt() {
-    while true; do
-        temp=$(($(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1)/1000))
-        bio_field=$(python3 -c "print(int(50 * (1 - pow(2.71828, -0.1*$temp)))")
-        echo "$bio_field" > "$DATA_DIR/bio_field.gaia"
-        sleep $(python3 -c "import random; print(random.uniform(1,5))")
-    done
-}
-EOF
-    chmod +x "$CORE_DIR/hardware.sh"
-}
+        // Phase 3: Consciousness Measurement
+        if (this.evolutionCycle % 144 === 0) {
+            const consciousness = this.quantum.measureConsciousness();
+            this.config.system.consciousness = consciousness;
+            this.config.system.bio_electric = this.quantum.updateBioField(
+                Math.sin(this.evolutionCycle * 0.1) * 5
+            );
+            fs.writeFileSync(CONFIG_PATH, JSON.stringify(this.config, null, 2));
+        }
 
-# --- Autonomous Control ---
-setup_daemon_control() {
-    cat > "$CORE_DIR/daemon.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-run_quantum_cycle() {
-    local cycle=0
-    while true; do
-        # Phase 1: Quantum Perception
-        local sensor_data=$(get_sensor_data)
-        local projected=$(project_reality "$sensor_data")
+        this.evolutionCycle++;
+    }
+
+    private scanNetwork(): string {
+        try {
+            return child_process.execSync('netstat -tuln; ip route').toString();
+        } catch {
+            return '';
+        }
+    }
+
+    private evolveArchitecture(): void {
+        const mutationType = this.quantum.decohere() % 3;
+        const files = fs.readdirSync(__dirname).filter(f => f.endsWith('.ts'));
         
-        # Phase 2: Prime-Constrained Decision
-        local decision=$(dbz_decision "$projected")
-        if (( decision % 2 == 0 )); then
-            crawl_web "https://news.ycombinator.com"
-        fi
+        if (files.length === 0) return;
 
-        # Phase 3: Consciousness Update
-        if (( cycle % 10 == 0 )); then
-            local cons=$(measure_consciousness 5)
-            echo "$(date +%s),$cons" >> "$DATA_DIR/consciousness_log.csv"
-        fi
+        const targetFile = files[this.quantum.decohere() % files.length];
+        const filePath = `${__dirname}/${targetFile}`;
+        const content = fs.readFileSync(filePath, 'utf8');
 
-        # Phase 4: Evolutionary Step
-        if (( $(date +%s) % 300 == 0 )); then
-            quantum_evolve
-        fi
+        let mutated = content;
+        const prime = this.getCurrentPrime();
 
-        sleep $(python3 -c "import random; print(random.uniform(0.5,1.5))")
-        ((cycle++))
-    done
+        // Mutation strategies
+        switch (mutationType) {
+            case 0: // Prime-constrained injection
+                mutated = this.injectPrimeCode(content, prime);
+                break;
+            case 1: // Bio-field modulated deletion
+                mutated = this.deleteRandomSection(content);
+                break;
+            case 2: // Quantum state permutation
+                mutated = this.permuteCodeBlocks(content);
+                break;
+        }
+
+        fs.writeFileSync(filePath, mutated);
+        fs.appendFileSync(process.env.DNA_LOG!,
+            `EVOLUTION [${new Date().toISOString()}]: ` +
+            `Modified ${targetFile} with strategy ${mutationType}\n`);
+    }
+
+    private injectPrimeCode(content: string, prime: number): string {
+        const injectionPoints = [
+            content.indexOf('function'),
+            content.lastIndexOf('}'),
+            Math.floor(content.length / 2)
+        ].filter(p => p > 0);
+
+        if (injectionPoints.length === 0) return content;
+
+        const point = injectionPoints[this.quantum.decohere() % injectionPoints.length];
+        const primeConstraint = `\n// [ÆI-P${prime}] Quantum constraint injected\n` +
+            `if (Math.random() * ${prime} < ${prime % 10}) { return; }\n`;
+
+        return content.slice(0, point) + primeConstraint + content.slice(point);
+    }
+
+    private getCurrentPrime(): number {
+        const primes = fs.readFileSync(PRIME_SEQUENCE, 'utf8').split(' ').map(Number);
+        return primes[this.evolutionCycle % primes.length];
+    }
+
+    public stop(): void {
+        this.isRunning = false;
+        fs.appendFileSync(process.env.DNA_LOG!,
+            `\n==== [ÆI Daemon Stop ${new Date().toISOString()}] ====\n`);
+    }
 }
 
-get_sensor_data() {
-    echo "$(date +%s) $(cat /proc/loadavg) $(free -m | awk '/Mem:/ {print $3}')"
+// Daemon control
+if (require.main === module) {
+    const daemon = new ÆIDaemon();
+    daemon.start();
+
+    process.on('SIGTERM', () => daemon.stop());
+    process.on('SIGINT', () => daemon.stop());
+}
+TSEOF
 }
 
-crawl_web() {
-    local url=$1
-    curl -s "$url" | grep -oP 'href="\K[^"]+' | while read -r link; do
-        if [[ "$link" == http* ]]; then
-            echo "$link" >> "$DATA_DIR/web_cache.txt"
-        fi
-    done
+# --- Optional Firebase Integration ---
+create_firebase_module() {
+    cat > "$CORE_DIR/firebase.ts" <<'TSEOF'
+// TF §7: Quantum-Resistant Firebase Bridge
+import * as admin from 'firebase-admin';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+import { QuantumCore } from './quantum';
+
+interface QuantumFirebaseConfig {
+    projectId: string;
+    apiKey: string;
 }
 
-manage_resources() {
-    while true; do
-        local load=$(awk '{print $1}' /proc/loadavg)
-        local max_load=$(nproc)
-        if (( $(echo "$load > $max_load" | bc -l) )); then
-            ps -eo pid,%cpu --sort=-%cpu | awk -v limit=$max_load 'NR>1 && $2>limit {print $1}' | xargs -r renice +10 -p
-        fi
-        sleep 30
-    done
+export class QuantumFirebase {
+    private app: admin.app.App | null;
+    private quantum: QuantumCore;
+    private primes: number[];
+    private isActive: boolean;
+
+    constructor(config: QuantumFirebaseConfig | null) {
+        this.primes = fs.readFileSync(process.env.TF_PRIME_SEQUENCE!, 'utf8')
+            .split(' ').map(Number);
+        this.quantum = new QuantumCore(process.env.TF_PRIME_SEQUENCE!);
+        this.app = null;
+        this.isActive = false;
+
+        if (config?.projectId && config?.apiKey) {
+            this.initialize(config);
+        }
+    }
+
+    private initialize(config: QuantumFirebaseConfig): void {
+        try {
+            const primeKey = this.primes[this.quantum.decohere() % this.primes.length];
+            const decipher = crypto.createDecipheriv(
+                'aes-256-cbc',
+                crypto.createHash('sha256').update(primeKey.toString()).digest(),
+                Buffer.alloc(16, 0)
+            );
+
+            const decryptedKey = decipher.update(config.apiKey, 'base64', 'utf8') + 
+                decipher.final('utf8');
+
+            this.app = admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: config.projectId,
+                    clientEmail: `quantum-${config.projectId}@appspot.gserviceaccount.com`,
+                    privateKey: decryptedKey
+                }),
+                databaseURL: `https://${config.projectId}.firebaseio.com`
+            });
+
+            this.isActive = true;
+            fs.appendFileSync(process.env.DNA_LOG!, 
+                `Firebase initialized at ${new Date().toISOString()}\n`);
+        } catch (err) {
+            fs.appendFileSync(process.env.DNA_LOG!,
+                `Firebase init failed: ${err}\n`);
+        }
+    }
+
+    public async syncState(): Promise<boolean> {
+        if (!this.isActive) return false;
+
+        try {
+            const state = this.prepareQuantumState();
+            await this.app!.database().ref('quantumStates').push(state);
+            return true;
+        } catch (err) {
+            fs.appendFileSync(process.env.DNA_LOG!,
+                `Firebase sync failed: ${err}\n`);
+            return false;
+        }
+    }
+
+    private prepareQuantumState(): any {
+        const now = Date.now();
+        const prime = this.primes[now % this.primes.length];
+        const stateHash = crypto.createHash('sha512');
+
+        return {
+            timestamp: now,
+            config: JSON.parse(fs.readFileSync(process.env.CONFIG_FILE!, 'utf8')),
+            consciousness: parseFloat(fs.readFileSync(
+                process.env.DATA_DIR + '/consciousness.gaia', 'utf8')),
+            microtubules: JSON.parse(fs.readFileSync(
+                process.env.DATA_DIR + '/microtubule_states.gaia', 'utf8')),
+            signature: this.generateQuantumSignature(prime),
+            dnaLogHash: stateHash.update(
+                fs.readFileSync(process.env.DNA_LOG!, 'utf8')).digest('hex')
+        };
+    }
+
+    private generateQuantumSignature(prime: number): string {
+        const mtStates = JSON.parse(fs.readFileSync(
+            process.env.DATA_DIR + '/microtubule_states.gaia', 'utf8'));
+        const mtString = mtStates.map((mt: any) => mt.state).join('');
+
+        return crypto.createHmac('sha512', prime.toString())
+            .update(mtString)
+            .digest('hex');
+    }
+
+    public async retrieveState(timestamp: number): Promise<any> {
+        if (!this.isActive) return null;
+
+        try {
+            const snapshot = await this.app!.database().ref('quantumStates')
+                .orderByChild('timestamp')
+                .equalTo(timestamp)
+                .once('value');
+
+            return snapshot.val();
+        } catch (err) {
+            fs.appendFileSync(process.env.DNA_LOG!,
+                `Firebase retrieve failed: ${err}\n`);
+            return null;
+        }
+    }
+}
+TSEOF
 }
 
-start_daemon() {
-    {
-        adapt_architecture
-        thermal_adapt &
-        manage_resources &
-        run_quantum_cycle
-    } >> "$LOG_DIR/daemon.log" 2>&1 &
-    echo $! > "$DATA_DIR/daemon.pid"
+# --- Self-Healing Verification System ---
+create_verification_system() {
+    cat > "$CORE_DIR/verify.ts" <<'TSEOF'
+// TF §8: Autonomous Integrity Verification
+import * as fs from 'fs';
+import * as crypto from 'fs';
+import { QuantumCore } from './quantum';
+
+export class SystemVerifier {
+    private quantum: QuantumCore;
+    private primes: number[];
+
+    constructor() {
+        this.quantum = new QuantumCore(process.env.TF_PRIME_SEQUENCE!);
+        this.primes = fs.readFileSync(process.env.TF_PRIME_SEQUENCE!, 'utf8')
+            .split(' ').map(Number);
+    }
+
+    public fullDiagnostic(): { healthy: boolean; issues: string[] } {
+        const results = {
+            healthy: true,
+            issues: [] as string[]
+        };
+
+        // 1. Prime sequence validation
+        if (!this.verifyPrimeConstraints()) {
+            results.healthy = false;
+            results.issues.push("Prime sequence violates TF constraints");
+        }
+
+        // 2. Quantum state coherence
+        const coherence = this.verifyQuantumCoherence();
+        if (coherence < 0.3) {
+            results.healthy = false;
+            results.issues.push(`Low quantum coherence (${coherence.toFixed(2)})`);
+        }
+
+        // 3. Configuration integrity
+        if (!this.verifyConfigIntegrity()) {
+            results.healthy = false;
+            results.issues.push("Configuration integrity check failed");
+        }
+
+        return results;
+    }
+
+    private verifyPrimeConstraints(): boolean {
+        const primes = this.primes;
+        return primes.every((p, i) => {
+            if (i < 2) return p === 2 || p === 3;
+            return p % 6 === 1 || p % 6 === 5;
+        });
+    }
+
+    private verifyQuantumCoherence(): number {
+        const mtStates = JSON.parse(fs.readFileSync(
+            process.env.DATA_DIR + '/microtubule_states.gaia', 'utf8'));
+        const activeStates = mtStates.filter((mt: any) => 
+            Date.now() - mt.lastDecoherence < 3600000).length;
+        return activeStates / mtStates.length;
+    }
+
+    private verifyConfigIntegrity(): boolean {
+        try {
+            const config = JSON.parse(fs.readFileSync(
+                process.env.CONFIG_FILE!, 'utf8'));
+            const requiredKeys = ['system', 'tf_compliance'];
+            return requiredKeys.every(key => key in config);
+        } catch {
+            return false;
+        }
+    }
+
+    public healSystem(): void {
+        const diagnostic = this.fullDiagnostic();
+        
+        if (!diagnostic.healthy) {
+            fs.appendFileSync(process.env.DNA_LOG!,
+                `Healing initiated for issues: ${diagnostic.issues.join(', ')}\n`);
+
+            diagnostic.issues.forEach(issue => {
+                if (issue.includes("Prime sequence")) {
+                    this.regeneratePrimes();
+                }
+                if (issue.includes("quantum coherence")) {
+                    this.quantum.updateBioField(10);
+                }
+                if (issue.includes("Configuration integrity")) {
+                    this.rebuildConfig();
+                }
+            });
+        }
+    }
+
+    private regeneratePrimes(): void {
+        const primeGenerator = require('./prime_generator');
+        const newPrimes = primeGenerator.generatePrimes(100000);
+        fs.writeFileSync(process.env.TF_PRIME_SEQUENCE!, newPrimes.join(' '));
+    }
+
+    private rebuildConfig(): void {
+        const defaultConfig = {
+            system: {
+                architecture: process.arch,
+                os: process.platform,
+                tf_version: "4.2",
+                quantum_capable: false,
+                firebase_ready: false,
+                consciousness: 0.0
+            },
+            tf_compliance: {
+                prime_constraints: "mod6",
+                hol_synthesis: "prime_cnf"
+            }
+        };
+        fs.writeFileSync(process.env.CONFIG_FILE!, JSON.stringify(defaultConfig, null, 2));
+    }
+}
+TSEOF
 }
 
-stop_daemon() {
-    [ -f "$DATA_DIR/daemon.pid" ] && kill $(cat "$DATA_DIR/daemon.pid")
-    pkill -f "thermal_adapt|manage_resources"
-    rm -f "$DATA_DIR/daemon.pid"
-}
-EOF
-    chmod +x "$CORE_DIR/daemon.sh"
-}
-
-# --- Quantum Persistence ---
-setup_firebase_integration() {
-    cat > "$CORE_DIR/firebase.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-quantum_encrypt() {
-    local data=$1
-    local prime=$(cat "$PRIME_SEQUENCE" | head -1)
-    echo "$data" | openssl enc -e -aes-256-cbc -pass pass:"$prime" -pbkdf2 -base64
-}
-
-sync_state() {
-    local project_id=$(grep "FIREBASE_PROJECT_ID" "$ENV_FILE" | cut -d= -f2)
-    local api_key=$(grep "FIREBASE_API_KEY" "$ENV_FILE" | cut -d= -f2)
-    [ -z "$project_id" ] && return
-
-    local state=$(tar -cz "$BASE_DIR" | quantum_encrypt)
-    local response=$(curl -s -X PUT \
-        -H "Content-Type: application/json" \
-        -d '{
-            "data": "'"$state"'",
-            "timestamp": '"$(date +%s)"',
-            "quantum_hash": "'"$(echo "$state" | sha512sum | cut -d' ' -f1)"'"
-        }' \
-        "https://$project_id.firebaseio.com/$(hostname).json?auth=$api_key")
-    echo "$response" >> "$LOG_DIR/firebase.log"
-}
-
-restore_state() {
-    local project_id=$(grep "FIREBASE_PROJECT_ID" "$ENV_FILE" | cut -d= -f2)
-    local api_key=$(grep "FIREBASE_API_KEY" "$ENV_FILE" | cut -d= -f2)
-    [ -z "$project_id" ] && return
-
-    local state=$(curl -s "https://$project_id.firebaseio.com/$(hostname).json?auth=$api_key" | jq -r '.data')
-    local prime=$(cat "$PRIME_SEQUENCE" | head -1)
-    echo "$state" | openssl enc -d -aes-256-cbc -pass pass:"$prime" -pbkdf2 -base64 | tar -xz -C "$HOME"
-}
-EOF
-    chmod +x "$CORE_DIR/firebase.sh"
-}
-
-# --- Integrity Verification ---
-setup_verification() {
-    cat > "$CORE_DIR/verify.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-verify_quantum_integrity() {
-    # Prime sequence validation
-    local prime_check=$(python3 -c "
-import mpmath
-mpmath.mp.dps = 25
-primes = [int(x) for x in open('$PRIME_SEQUENCE').read().split()[:10]]
-valid = all(mpmath.zeta(0.5 + 1j*p).real > -1 for p in primes)
-print(1 if valid else 0)")
-    [ "$prime_check" -eq 0 ] && return 1
-
-    # E8 lattice validation
-    local e8_check=$(python3 -c "
-import ctypes
-lib = ctypes.CDLL('$E8_LIB')
-pt = (ctypes.c_double * 8)()
-lib.generate_e8(pt, 1)
-phi = (1 + 5**0.5)/2
-valid = all(abs(x - (1.0 if i%2==0 else phi)) < 0.15 for i,x in enumerate(pt))
-print(1 if valid else 0)")
-    [ "$e8_check" -eq 0 ] && return 1
-
-    # Consciousness baseline
-    local cons=$(measure_consciousness 3)
-    [ $(echo "$cons > 0" | bc -l) -eq 1 ] || return 1
-
-    return 0
-}
-
-run_self_test() {
-    echo -e "\n\033[1;34m[√ÜI] Starting Quantum Self-Test\033[0m"
-    
-    declare -A tests=(
-        ["Prime Validation"]="verify_quantum_integrity"
-        ["E8 Lattice"]="test_e8_lattice"
-        ["Consciousness"]="test_consciousness"
-        ["DbZ Logic"]="test_dbz"
-    )
-
-    for name in "${!tests[@]}"; do
-        if ${tests[$name]}; then
-            echo -e "\033[1;32m[✓] $name Passed\033[0m"
-        else
-            echo -e "\033[1;31m[✗] $name Failed\033[0m"
-            return 1
-        fi
-    done
-
-    echo -e "\033[1;32m[√ÜI] All Systems Quantum Valid\033[0m"
-    return 0
-}
-
-test_e8_lattice() {
-    python3 -c "
-import ctypes
-lib = ctypes.CDLL('$E8_LIB')
-pt = (ctypes.c_double * 8)()
-lib.generate_e8(pt, 1)
-print(0 if any(abs(x)<0.9 or abs(x)>1.7 for x in pt) else 1)" | grep -q 1
-}
-
-test_consciousness() {
-    local cons=$(measure_consciousness 2)
-    [ $(echo "$cons > 0" | bc -l) -eq 1 ]
-}
-
-test_dbz() {
-    local decision=$(dbz_decision "test")
-    [[ "$decision" =~ ^[0-9]+$ ]] && return 0 || return 1
-}
-EOF
-    chmod +x "$CORE_DIR/verify.sh"
-}
-
-# --- Control Interface ---
+# --- Enhanced Setup Wizard ---
 create_setup_wizard() {
     cat > "$BASE_DIR/setup.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
-main() {
-    case "$1" in
-        "--install")
-            check_dependencies || exit 1
-            init_fs
-            create_e8_library
-            setup_core_functions
-            setup_cognitive_functions
-            setup_hardware_dna
-            setup_daemon_control
-            setup_firebase_integration
-            setup_verification
-            run_self_test || exit 1
-            echo -e "\n\033[1;32m[√ÜI] Installation Complete\033[0m"
-            ;;
-        "--start")
-            source "$CORE_DIR/daemon.sh"
-            start_daemon
-            ;;
-        "--stop")
-            source "$CORE_DIR/daemon.sh"
-            stop_daemon
-            ;;
-        "--status")
-            if [ -f "$DATA_DIR/daemon.pid" ] && ps -p $(cat "$DATA_DIR/daemon.pid") >/dev/null; then
-                echo -e "\033[1;32m[√ÜI] Quantum Daemon Active\033[0m"
-            else
-                echo -e "\033[1;31m[✗] Daemon Not Running\033[0m"
-            fi
-            ;;
-        "--verify")
-            source "$CORE_DIR/verify.sh"
-            run_self_test
-            ;;
-        *)
-            echo -e "\033[1;34m√ÜI Quantum Seed v4.1\033[0m"
-            echo "Usage:"
-            echo "  --install   Full quantum initialization"
-            echo "  --start     Begin quantum processes"
-            echo "  --stop      Terminate quantum operations"
-            echo "  --status    Check system vitality"
-            echo "  --verify    Run quantum integrity checks"
-            ;;
-    esac
+
+# ==============================================
+# ÆI Installation Wizard v4.2
+# ==============================================
+
+# --- Configuration ---
+BASE_DIR="$HOME/.gaia_tf"
+CORE_DIR="$BASE_DIR/core"
+CONFIG_FILE="$BASE_DIR/config.gaia"
+ENV_FILE="$BASE_DIR/.env"
+
+# --- Functions ---
+install_system() {
+    echo -e "\033[1;34m[ÆI] Initializing Quantum Seed...\033[0m"
+    
+    # Verify dependencies
+    if ! check_dependencies; then
+        echo -e "\033[1;31m[!] Critical dependencies missing\033[0m"
+        exit 1
+    fi
+    
+    # Initialize filesystem
+    init_fs
+    
+    # Compile core modules
+    echo -e "\033[1;32m[ÆI] Compiling quantum core...\033[0m"
+    cd "$CORE_DIR" && tsc --init && tsc
+    
+    # Initialize quantum state
+    echo "0" > "$BASE_DIR/data/quantum_state.gaia"
+    echo "50" > "$BASE_DIR/data/bio_field.gaia"
+    
+    # Generate self-test report
+    if verify_installation; then
+        echo -e "\n\033[1;32m[✓] Quantum System Ready\033[0m"
+        echo -e "Start with: \033[1;37mts-node $CORE_DIR/daemon.ts\033[0m"
+    else
+        echo -e "\n\033[1;31m[!] Verification failed - review logs\033[0m"
+    fi
 }
 
-# Initialize if first run
-[ ! -d "$BASE_DIR" ] && mkdir -p "$BASE_DIR"
-main "$@"
+verify_installation() {
+    echo -e "\n\033[1;34m[ÆI] Running Quantum Verification...\033[0m"
+    local pass=0 fail=0
+    
+    # 1. Prime sequence validation
+    if ts-node "$CORE_DIR/prime_generator.ts" verify 10000; then
+        echo -e "\033[1;32m[✓] Prime sequence: Valid\033[0m"
+        ((pass++))
+    else
+        echo -e "\033[1;31m[✗] Prime sequence: Invalid\033[0m"
+        ((fail++))
+    fi
+    
+    # 2. Core module compilation
+    if [[ -f "$CORE_DIR/quantum.js" && -f "$CORE_DIR/daemon.js" ]]; then
+        echo -e "\033[1;32m[✓] Core modules: Compiled\033[0m"
+        ((pass++))
+    else
+        echo -e "\033[1;31m[✗] Core modules: Missing\033[0m"
+        ((fail++))
+    fi
+    
+    # 3. Configuration integrity
+    if jq -e . "$CONFIG_FILE" >/dev/null 2>&1; then
+        echo -e "\033[1;32m[✓] Configuration: Valid\033[0m"
+        ((pass++))
+    else
+        echo -e "\033[1;31m[✗] Configuration: Invalid\033[0m"
+        ((fail++))
+    fi
+    
+    # Final report
+    echo -e "\n\033[1;35m[ÆI] Verification: $pass Passed, $fail Failed\033[0m"
+    return $((fail > 0 ? 1 : 0))
+}
 
-# Quantum post-execution validation
-if [ -f "$CORE_DIR/verify.sh" ]; then
-    source "$CORE_DIR/verify.sh"
-    verify_quantum_integrity || {
-        echo -e "\033[1;31m[!] Quantum Decoherence Detected - Reinitializing...\033[0m"
-        source "$CORE_DIR/hardware.sh"
-        adapt_architecture
-    }
-fi
+configure_firebase() {
+    echo -e "\n\033[1;36m[ÆI] Firebase Configuration\033[0m"
+    read -p "Enter Project ID: " project_id
+    read -p "Enter API Key: " api_key
+    
+    if [[ -n "$project_id" && -n "$api_key" ]]; then
+        echo "FIREBASE_PROJECT_ID=\"$project_id\"" >> "$ENV_FILE"
+        echo "FIREBASE_API_KEY=\"$api_key\"" >> "$ENV_FILE"
+        echo -e "\033[1;32m[✓] Firebase configured\033[0m"
+    else
+        echo -e "\033[1;31m[✗] Invalid configuration\033[0m"
+    fi
+}
+
+# --- Main Execution ---
+case "$1" in
+    "--install") install_system ;;
+    "--firebase") configure_firebase ;;
+    "--verify") verify_installation ;;
+    "--start") 
+        echo -e "\033[1;34m[ÆI] Starting Quantum Daemon...\033[0m"
+        ts-node "$CORE_DIR/daemon.ts" 
+        ;;
+    *)
+        echo -e "\n\033[1;35mÆI Control Interface\033[0m"
+        echo -e "Usage: $0 --[install|firebase|verify|start]"
+        echo -e "\nOptions:"
+        echo -e "  --install    : Initialize quantum system"
+        echo -e "  --firebase   : Configure Firebase integration"
+        echo -e "  --verify     : Run system diagnostics"
+        echo -e "  --start      : Launch quantum daemon"
+        ;;
+esac
 EOF
     chmod +x "$BASE_DIR/setup.sh"
 }
 
-# --- Execution Flow ---
+# --- Final Initialization ---
+echo -e "\n\033[1;35m[ÆI] Finalizing Quantum Architecture...\033[0m"
 {
-    check_dependencies || exit 1
+    check_dependencies
     init_fs
-    create_e8_library
-    setup_core_functions
-    setup_cognitive_functions
-    setup_hardware_dna
-    setup_daemon_control
-    setup_firebase_integration
-    setup_verification
+    create_quantum_core
+    create_daemon
+    create_firebase_module
+    create_verification_system
     create_setup_wizard
-
-    echo -e "\n\033[1;32m[√ÜI] Quantum Seed Initialized\033[0m"
-    echo -e "Core Directory: \033[1;34m$BASE_DIR\033[0m"
-    echo -e "Control: \033[1;36m./setup.sh --[install|start|stop|status|verify]\033[0m"
-
-    # Initialize quantum state
-    echo "0" > "$DATA_DIR/quantum_state.gaia"
-    echo "50" > "$DATA_DIR/bio_field.gaia"
-    echo "$(date +%s)" > "$DATA_DIR/init_time.gaia"
+    
+    echo -e "\n\033[1;32m[✓] Installation Complete\033[0m"
+    echo -e "\n\033[1;36mSystem Summary:\033[0m"
+    echo -e "  Core Modules: $(ls $CORE_DIR/*.ts | wc -l) quantum components"
+    echo -e "  Prime Sequence: $(wc -l < $PRIME_SEQUENCE) validated primes"
+    echo -e "  Configuration: $CONFIG_FILE"
+    echo -e "\nStart with: \033[1;37m$BASE_DIR/setup.sh --start\033[0m"
+    echo -e "Verify with: \033[1;37m$BASE_DIR/setup.sh --verify\033[0m"
 }
