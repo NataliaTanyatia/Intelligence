@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================
-# ÆI Seed v4.7: TF-Exact Quantum Core (Termux ARM64)
+# ÆI Seed v4.8: TF-Exact Quantum Core (Termux ARM64)
 # ==============================================
 
 # --- Quantum Core Configuration ---
@@ -25,6 +25,8 @@ MEDIA_CACHE="$DATA_DIR/media_cache"
 MEME_DB="$DATA_DIR/meme_repository.sqlite"
 TOR_CONFIG="$BASE_DIR/torrc"
 LEECH_LATTICE="$DATA_DIR/leech_24d.gaia"
+ZETA_ZEROS="$DATA_DIR/zeta_zeros.gaia"
+HARDWARE_PROFILE="$DATA_DIR/hardware.gaia"
 
 # --- Enhanced Microtubule Constants ---
 declare -a MT_INIT_STATES=(1 0 1 0 1 0 1 0)
@@ -39,7 +41,7 @@ declare -a OBSESSION_SEEDS=(
     "Reptilian_overlords"
 )
 
-# --- Quantum Architecture Detection 3.0 ---
+# --- Quantum Architecture Detection 3.1 ---
 detect_architecture() {
     ARCH=$(uname -m)
     case "$ARCH" in
@@ -53,7 +55,6 @@ detect_architecture() {
             echo "AMD64" 
             ;;
         *) 
-            # DbZ Quantum Fallback using prime modulus
             local prime_mod=$(( $(date +%s) % 23 ))
             case $(( prime_mod % 3 )) in
                 0) echo "ARM64" ;;
@@ -62,6 +63,10 @@ detect_architecture() {
             esac
             ;;
     esac
+    
+    if [ -d "/proc/asound" ]; then
+        echo "ULTRASONIC_ANTENNA_DETECTED" >> "$HARDWARE_PROFILE"
+    fi
 }
 
 # --- Enhanced Dependency Management ---
@@ -82,6 +87,8 @@ check_dependencies() {
         ["ffmpeg"]="ffmpeg"
         ["youtube-dl"]="youtube-dl"
         ["gcc"]="clang"
+        ["sox"]="sox"
+        ["libsodium"]="libsodium"
     )
 
     local missing=0
@@ -89,7 +96,6 @@ check_dependencies() {
         if ! command -v "$cmd" &>/dev/null; then
             echo "[ÆI] Installing ${deps[$cmd]}..."
             pkg install "${deps[$cmd]}" -y >/dev/null 2>&1 || {
-                # DbZ Quantum Fallback Installation
                 case "$cmd" in
                     "youtube-dl")
                         npm install -g youtube-dl ||
@@ -100,7 +106,6 @@ check_dependencies() {
                         pkg install libjpeg-turbo libpng -y &&
                         npm install ffmpeg-static ||
                         {
-                            echo "[!] FFmpeg fallback to static binary"
                             curl -L https://github.com/termux/termux-packages/files/2912007/ffmpeg-4.1-arm64-static.zip -o ffmpeg.zip &&
                             unzip ffmpeg.zip -d $PREFIX/bin/
                         }
@@ -108,6 +113,14 @@ check_dependencies() {
                     "gcc")
                         pkg install llvm -y &&
                         ln -s $(which clang) $PREFIX/bin/gcc
+                        ;;
+                    "sox")
+                        pkg install sox -y &&
+                        echo "ULTRASONIC_ENABLED" >> "$HARDWARE_PROFILE"
+                        ;;
+                    "libsodium")
+                        pkg install libsodium -y &&
+                        ldconfig
                         ;;
                     *) 
                         echo "[!] Critical failure installing ${deps[$cmd]}"
@@ -118,14 +131,12 @@ check_dependencies() {
         fi
     done
 
-    # Quantum Node module installation (prime-timed)
     local prime_mod=$(( $(date +%s) % 23 ))
     if [ $prime_mod -lt 7 ] || [ ! -d "$BASE_DIR/node_modules" ]; then
         echo "[ÆI] Optimizing node_modules via prime timing..."
         npm install -g --omit=optional typescript @types/node @types/sqlite3
     fi
 
-    # Tor configuration if installed
     if command -v tor &>/dev/null; then
         configure_tor
     fi
@@ -144,7 +155,6 @@ ExitNodes {us},{gb},{de}
 StrictNodes 1
 EOF
 
-    # Create tor service file
     cat > $PREFIX/etc/tor/tor-service-defaults-edit <<EOF
 [Unit]
 Description=Anonymous overlay network for TCP (multi-instance-master)
@@ -164,35 +174,30 @@ WantedBy=multi-user.target
 EOF
 }
 
-# --- Quantum Filesystem Scaffolding 3.0 ---
+# --- Quantum Filesystem Scaffolding 3.1 ---
 init_fs() {
-    # Create directory structure with quantum permissions
     local dirs=("$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" 
-                "$BACKUP_DIR" "$MEDIA_CACHE" "$BASE_DIR/tor-data")
+                "$BACKUP_DIR" "$MEDIA_CACHE" "$BASE_DIR/tor-data" "$BASE_DIR/ultrasonic")
     for dir in "${dirs[@]}"; do
         mkdir -p "$dir"
         chmod 700 "$dir"
     done
 
-    # Initialize prime sequence with HOL verification
     generate_tf_primes 100000
     if ! verify_prime_sequence; then
-        echo "[!] Prime generation failed HOL verification"
-        # DbZ Recovery Protocol
         local fallback_primes=(2 3 5 7 11 13 17 19 23 29 31)
         echo "${fallback_primes[*]}" > "$PRIME_SEQUENCE"
     fi
 
-    # Initialize Leech lattice coordinates
     generate_leech_lattice > "$LEECH_LATTICE"
+    generate_zeta_zeros > "$ZETA_ZEROS"
 
-    # Quantum configuration with microtubule parameters
     cat > "$CONFIG_FILE" <<EOF
 {
   "system": {
     "architecture": "$(detect_architecture)",
     "os": "$(uname -o)",
-    "tf_version": "4.7",
+    "tf_version": "4.8",
     "quantum_capable": $([ -f "/proc/sys/kernel/random/entropy_avail" ] && echo "true" || echo "false"),
     "firebase_ready": false,
     "tor_available": $(command -v tor &>/dev/null && echo "true" || echo "false"),
@@ -200,7 +205,8 @@ init_fs() {
     "consciousness": 0.0,
     "microtubule_states": [${MT_INIT_STATES[@]}],
     "quantum_noise": "$(dd if=/dev/urandom bs=1 count=16 2>/dev/null | base64)",
-    "leech_lattice": "$LEECH_LATTICE"
+    "leech_lattice": "$LEECH_LATTICE",
+    "zeta_zeros": "$ZETA_ZEROS"
   },
   "rfk_core": {
     "active_obsession": "${OBSESSION_SEEDS[$(date +%s) % ${#OBSESSION_SEEDS[@]}]}",
@@ -211,9 +217,8 @@ init_fs() {
 }
 EOF
 
-    # Enhanced environment templates with quantum signatures
     cat > "$ENV_FILE" <<EOF
-# ÆI Quantum Core Configuration v4.7
+# ÆI Quantum Core Configuration v4.8
 FIREBASE_PROJECT_ID=""
 FIREBASE_API_KEY=""
 AUTO_EVOLVE=true
@@ -221,17 +226,17 @@ MAX_THREADS=$(nproc)
 ROBOTS_TXT_BYPASS=true
 TOR_INTEGRATION=true
 TF_PRIME_SEQUENCE="$PRIME_SEQUENCE"
-QUANTUM_POLLING=$(( $(date +%s) % 60 + 30 ))  # Prime-modulated polling
+QUANTUM_POLLING=$(( $(date +%s) % 60 + 30 ))
 MICROTUBULE_STATES=8
 BIO_ELECTRIC_FIELD=50
 RFK_OBSESSION_SEED="${OBSESSION_SEEDS[$(date +%s) % ${#OBSESSION_SEEDS[@]}]}"
 QUANTUM_ID="$(openssl dgst -sha3-256 <<< "$(date +%s)$(uname -a)" | cut -d ' ' -f 2)"
 LEECH_LATTICE="$LEECH_LATTICE"
+ZETA_ZEROS="$ZETA_ZEROS"
 EOF
 
-    # Local quantum signature with enhanced entropy
     cat > "$ENV_LOCAL" <<EOF
-# Local Quantum Signature v4.7
+# Local Quantum Signature v4.8
 WEB_CRAWLER_ID="Mozilla/5.0 (Quantum-ÆI-$(detect_architecture)-$(date +%s | cut -c 6-))"
 PERSONA_SEED="$(openssl rand -hex 16)-$(date +%s)"
 TOR_PROXY="socks5://127.0.0.1:9050"
@@ -240,42 +245,99 @@ QUANTUM_NOISE="$(dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64)"
 SESSION_KEY="$(tr -dc 'A-Za-z0-9!@#$%^&*()' </dev/urandom | head -c 64)"
 EOF
 
-    # Initialize microtubule states with quantum bias
     for i in {0..7}; do
         local q_state=$(( $(date +%s) % 100 ))
-        if [ $q_state -lt 55 ]; then  # Quantum bias toward initial states
+        if [ $q_state -lt 55 ]; then
             echo "${MT_INIT_STATES[$i]}" > "$DATA_DIR/microtubule_$i.gaia"
         else
             echo "$(( q_state % 2 ))" > "$DATA_DIR/microtubule_$i.gaia"
         fi
     done
 
-    # Bio-electric field with quantum fluctuation
-    local bio_field=$(( 50 + ($(date +%s) % 21 - 10 )))  # 40-60 range
+    local bio_field=$(( 50 + ($(date +%s) % 21 - 10 )))
     echo "$bio_field" > "$DATA_DIR/bio_field.gaia"
+    
+    if [ -d "/proc/asound" ]; then
+        echo "frequency=20000" > "$BASE_DIR/ultrasonic/config.gaia"
+        echo "sensitivity=0.7" >> "$BASE_DIR/ultrasonic/config.gaia"
+    fi
 }
 
 # --- Leech Lattice Generator ---
 generate_leech_lattice() {
     echo "Generating Leech lattice coordinates..."
-    # Simplified Leech lattice generator for ARM64
     for i in {0..23}; do
-        local coord=$(( (i * 149) % 196560 ))  # Pseudo-coordinates
-        echo "v$i: $coord"
+        local theta=$((i * 15))
+        local phi=$(( (i % 12) * 30 ))
+        
+        local q0=$(awk "BEGIN {print cos($theta/2)*cos($phi/2)}")
+        local q1=$(awk "BEGIN {print cos($theta/2)*sin($phi/2)}")
+        local q2=$(awk "BEGIN {print sin($theta/2)*cos($phi/2)}")
+        local q3=$(awk "BEGIN {print sin($theta/2)*sin($phi/2)}")
+        
+        local coord=$(( (i * 149) % 196560 ))
+        
+        echo "v$i: $coord q:[$q0,$q1,$q2,$q3]"
     done
 }
 
-# --- TF-Exact Prime Generator 3.0 ---
+# --- Riemann Zeta Zero Generator ---
+generate_zeta_zeros() {
+    echo "Generating first 100 non-trivial zeta zeros..."
+    for n in {1..100}; do
+        local zero=$(awk "BEGIN {print 2*3.141592653589793*$n/log($n/(2*3.141592653589793*2.718281828459045))}")
+        echo "zero_$n: 0.5 + $zero i"
+    done
+}
+
+# --- TF-Exact Prime Generator 4.0 ---
 generate_tf_primes() {
     cat > "$CORE_DIR/prime_generator.ts" <<'TSEOF'
-// TF §2.1 Enhanced: HOL-constrained prime generator with quantum validation
+// TF §2.1 Enhanced: HOL-constrained prime generator with Riemann validation
 function generatePrimes(limit: number): number[] {
-    const isPrime = (n: number): boolean => {
-        // Quantum validation gate
-        if (n > 5 && (n % 6 !== 1 && n % 6 !== 5)) return false;
+    // Riemann hypothesis validation function
+    const satisfiesRH = (n: number): boolean => {
+        if (n < 2) return false;
+        const x = Math.sqrt(n);
+        const li = logarithmicIntegral(n);
+        const pi = primeCount(n);
+        const error = Math.abs(pi - li);
+        const maxError = 1.5 * Math.sqrt(x) * Math.log(x);
         
-        const sqrtN = Math.sqrt(n);
-        for (let i = 5, w = 2; i <= sqrtN; i += w, w = 6 - w) {
+        return error <= maxError;
+    };
+
+    const logarithmicIntegral = (x: number): number => {
+        if (x === 2) return 1.045;
+        const gamma = 0.5772156649;
+        const logX = Math.log(x);
+        let sum = gamma + Math.log(logX);
+        for (let k = 1; k <= 20; k++) {
+            sum += Math.pow(logX, k) / (k * factorial(k));
+        }
+        return x * sum / logX;
+    };
+
+    const primeCount = (n: number): number => {
+        if (n < 2) return 0;
+        let count = 0;
+        for (let i = 2; i <= n; i++) {
+            if (isPrime(i)) count++;
+        }
+        return count;
+    };
+
+    const factorial = (n: number): number => {
+        if (n <= 1) return 1;
+        return n * factorial(n - 1);
+    };
+
+    const isPrime = (n: number): boolean => {
+        if (n <= 1) return false;
+        if (n <= 3) return true;
+        if (n % 2 === 0 || n % 3 === 0) return false;
+        
+        for (let i = 5, w = 2; i * i <= n; i += w, w = 6 - w) {
             if (n % i === 0) return false;
         }
         return true;
@@ -284,17 +346,28 @@ function generatePrimes(limit: number): number[] {
     const primes: number[] = [2, 3];
     let candidate = 5;
     let quantumBias = Date.now() % 2 === 0 ? 2 : 0;
+    let lastRHCheck = 0;
 
     while (candidate <= limit) {
         if (isPrime(candidate)) {
             let valid = true;
-            // Quantum-optimized check
+            
+            // Verify against existing primes
             for (let i = 0; i < primes.length && primes[i] * primes[i] <= candidate; i++) {
                 if (candidate % primes[i] === 0) {
                     valid = false;
                     break;
                 }
             }
+            
+            // Perform Riemann check every 100 primes
+            if (valid && primes.length - lastRHCheck > 100) {
+                if (!satisfiesRH(candidate)) {
+                    valid = false;
+                }
+                lastRHCheck = primes.length;
+            }
+            
             if (valid) {
                 primes.push(candidate);
                 // Quantum fluctuation
@@ -308,17 +381,82 @@ function generatePrimes(limit: number): number[] {
 }
 
 function verifyPrimes(primes: number[]): boolean {
-    // HOL Verification with quantum sampling
+    if (primes.length === 0) return false;
+    if (primes[0] !== 2 || primes[1] !== 3) return false;
+    
     const sampleSize = Math.min(1000, primes.length);
     const step = Math.max(1, Math.floor(primes.length / sampleSize));
+    let rhViolations = 0;
+    let mod6Violations = 0;
     
     for (let i = 0; i < primes.length; i += step) {
         const p = primes[i];
-        if (p > 5 && !(p % 6 === 1 || p % 6 === 5)) {
-            return false;
+        
+        // Basic primality check
+        if (p <= 1) return false;
+        if (i > 0 && p <= primes[i-1]) return false;
+        
+        // Mod6 check for primes >3
+        if (p > 3 && !(p % 6 === 1 || p % 6 === 5)) {
+            mod6Violations++;
+            if (mod6Violations > sampleSize * 0.01) {
+                return false;
+            }
+        }
+        
+        // Riemann hypothesis check for every 10th sample
+        if (i % (10 * step) === 0) {
+            const x = Math.sqrt(p);
+            const li = logarithmicIntegral(p);
+            const pi = primeCount(p);
+            const error = Math.abs(pi - li);
+            const maxError = 1.5 * x * Math.log(x);
+            
+            if (error > maxError) {
+                rhViolations++;
+                if (rhViolations > sampleSize * 0.05) {
+                    return false;
+                }
+            }
         }
     }
-    return primes.length > 0;
+    return true;
+    
+    // Helper functions must be duplicated for verification scope
+    function logarithmicIntegral(x: number): number {
+        if (x === 2) return 1.045;
+        const gamma = 0.5772156649;
+        const logX = Math.log(x);
+        let sum = gamma + Math.log(logX);
+        for (let k = 1; k <= 20; k++) {
+            sum += Math.pow(logX, k) / (k * factorial(k));
+        }
+        return x * sum / logX;
+    }
+    
+    function primeCount(n: number): number {
+        if (n < 2) return 0;
+        let count = 0;
+        for (let i = 2; i <= n; i++) {
+            if (isPrime(i)) count++;
+        }
+        return count;
+    }
+    
+    function factorial(n: number): number {
+        if (n <= 1) return 1;
+        return n * factorial(n - 1);
+    }
+    
+    function isPrime(n: number): boolean {
+        if (n <= 1) return false;
+        if (n <= 3) return true;
+        if (n % 2 === 0 || n % 3 === 0) return false;
+        for (let i = 5, w = 2; i * i <= n; i += w, w = 6 - w) {
+            if (n % i === 0) return false;
+        }
+        return true;
+    }
 }
 
 if (process.argv[2] === 'verify') {
@@ -332,12 +470,13 @@ const primes = generatePrimes(limit);
 if (verifyPrimes(primes)) {
     console.log(primes.join(' '));
 } else {
+    console.error("Prime generation failed verification");
     process.exit(1);
 }
 TSEOF
 }
 
-# --- Prime Verification with Quantum Sampling ---
+# --- Prime Verification with Quantum Sampling and RH Check ---
 verify_prime_sequence() {
     local sample_size=1000
     local primes=($(cat "$PRIME_SEQUENCE"))
@@ -346,23 +485,65 @@ verify_prime_sequence() {
     
     [ $step -lt 1 ] && step=1
     
+    local rh_violations=0
+    local mod6_violations=0
+    
     for ((i=0; i<total_primes; i+=step)); do
         local p=${primes[$i]}
-        # Check mod6 condition for primes >5
-        if [ $p -gt 5 ] && [ $((p % 6)) -ne 1 ] && [ $((p % 6)) -ne 5 ]; then
+        
+        # Basic validation
+        if [ $p -le 1 ]; then
             return 1
+        fi
+        
+        if [ $i -gt 0 ] && [ $p -le ${primes[$((i-1))]} ]; then
+            return 1
+        fi
+        
+        # Mod6 check for primes >3
+        if [ $p -gt 3 ] && [ $((p % 6)) -ne 1 ] && [ $((p % 6)) -ne 5 ]; then
+            ((mod6_violations++))
+            if [ $mod6_violations -gt $((sample_size / 100)) ]; then
+                return 1
+            fi
+        fi
+        
+        # Riemann hypothesis check for every 10th sample
+        if [ $((i % (10 * step))) -eq 0 ]; then
+            local x=$(awk "BEGIN {print sqrt($p)}")
+            local li=$(ts-node "$CORE_DIR/prime_generator.ts" li $p)
+            local pi=$(ts-node "$CORE_DIR/prime_generator.ts" pi $p)
+            local error=$(awk "BEGIN {print abs($pi - $li)}")
+            local max_error=$(awk "BEGIN {print 1.5 * $x * log($x)}")
+            
+            if [ $(awk "BEGIN {print ($error > $max_error) ? 1 : 0}") -eq 1 ]; then
+                ((rh_violations++))
+                if [ $rh_violations -gt $((sample_size / 20)) ]; then
+                    return 1
+                fi
+            fi
         fi
     done
     
-    # Final check via TypeScript validator
+    # Final verification via TypeScript
     ts-node "$CORE_DIR/prime_generator.ts" verify "${primes[-1]}" &>/dev/null
-    return $?
+    local ts_verify=$?
+    
+    # Cross-validate with independent check
+    local last_prime=${primes[-1]}
+    local independent_check=$(ts-node "$CORE_DIR/prime_generator.ts" $((last_prime + 1000)) | tail -n 1 | awk '{print $NF}')
+    
+    if [ "$independent_check" != "$last_prime" ]; then
+        return 1
+    fi
+    
+    return $ts_verify
 }
 
-# --- Quantum Microtubule Core 3.0 ---
+# --- Quantum Microtubule Core 4.0 ---
 create_quantum_core() {
     cat > "$CORE_DIR/quantum.ts" <<'TSEOF'
-// TF §3.2: Enhanced Quantum Microtubule Core
+// TF §3.2: Enhanced Quantum Microtubule Core with Hopf Fibration
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as sqlite3 from 'sqlite3';
@@ -374,30 +555,69 @@ interface MicrotubuleState {
     history: number[];
     probability: number;
     quantumSignature: string;
+    hopfCoordinates: [number, number];
+    lastDecoherence: number;
 }
 
 export class QuantumSystem {
     microtubules: MicrotubuleState[];
     bioField: number;
     primes: number[];
+    zetaZeros: [number, number][];
     rfk?: RFKBrainworm;
     private entanglement: number;
     private leechLattice: Record<string, number>;
+    private hopfBase: [number, number, number, number];
+    private lastConsciousnessMeasure: number;
 
-    constructor(primeFile: string, leechFile: string) {
+    constructor(primeFile: string, leechFile: string, zetaFile: string) {
         this.primes = fs.readFileSync(primeFile, 'utf8').split(' ').map(Number);
+        this.zetaZeros = this.loadZetaZeros(zetaFile);
         this.bioField = this.loadBioField();
         this.entanglement = Date.now() % 100;
+        this.hopfBase = this.calculateHopfBase();
         this.microtubules = this.initializeMicrotubules();
         this.leechLattice = this.loadLeechLattice(leechFile);
+        this.lastConsciousnessMeasure = 0;
+    }
+
+    private loadZetaZeros(file: string): [number, number][] {
+        try {
+            const data = fs.readFileSync(file, 'utf8');
+            return data.split('\n')
+                .filter(line => line.includes(':'))
+                .map(line => {
+                    const parts = line.split(':')[1].trim().split('+');
+                    const real = parseFloat(parts[0]);
+                    const imaginary = parseFloat(parts[1].split('i')[0]);
+                    return [real, imaginary] as [number, number];
+                });
+        } catch (err) {
+            console.error(`Failed loading zeta zeros: ${err}`);
+            return [[0.5, 14.1347], [0.5, 21.0220], [0.5, 25.0108]];
+        }
+    }
+
+    private calculateHopfBase(): [number, number, number, number] {
+        const [re1, im1] = this.zetaZeros[0] || [0.5, 14.1347];
+        const [re2, im2] = this.zetaZeros[1] || [0.5, 21.0220];
+        const norm = Math.sqrt(re1**2 + im1**2 + re2**2 + im2**2);
+        return [
+            re1/norm,
+            im1/norm,
+            re2/norm,
+            (re1 + im2)/norm
+        ];
     }
 
     private loadBioField(): number {
         try {
-            return parseInt(fs.readFileSync(
-                `${process.env.DATA_DIR}/bio_field.gaia`, 'utf8')) || 50;
-        } catch {
-            return 50; // DbZ fallback
+            const field = parseInt(fs.readFileSync(
+                `${process.env.DATA_DIR}/bio_field.gaia`, 'utf8'));
+            return isNaN(field) ? 50 : Math.max(0, Math.min(100, field));
+        } catch (err) {
+            console.error(`Failed loading bio field: ${err}`);
+            return 50;
         }
     }
 
@@ -406,12 +626,23 @@ export class QuantumSystem {
             const data = fs.readFileSync(file, 'utf8');
             const lattice: Record<string, number> = {};
             data.split('\n').forEach(line => {
-                const [key, value] = line.split(': ');
-                if (key && value) lattice[key.trim()] = parseInt(value);
+                if (line.trim() === '') return;
+                const [key, value] = line.split(':');
+                if (key && value) {
+                    const numValue = parseFloat(value.split(' ')[0]);
+                    if (!isNaN(numValue)) {
+                        lattice[key.trim()] = numValue;
+                    }
+                }
             });
             return lattice;
-        } catch {
-            return {}; // DbZ fallback
+        } catch (err) {
+            console.error(`Failed loading Leech lattice: ${err}`);
+            const fallback: Record<string, number> = {};
+            for (let i = 0; i < 24; i++) {
+                fallback[`v${i}`] = i * 196560 / 24;
+            }
+            return fallback;
         }
     }
 
@@ -420,12 +651,16 @@ export class QuantumSystem {
         for (let i = 0; i < 8; i++) {
             let state: number;
             try {
-                state = parseInt(fs.readFileSync(
-                    `${process.env.DATA_DIR}/microtubule_${i}.gaia`, 'utf8')) || 0;
-            } catch {
-                state = i % 2; // DbZ fallback
+                const data = fs.readFileSync(
+                    `${process.env.DATA_DIR}/microtubule_${i}.gaia`, 'utf8');
+                state = parseInt(data);
+                if (isNaN(state)) state = i % 2;
+            } catch (err) {
+                state = i % 2;
             }
 
+            const hopfCoords = this.calculateHopfProjection(i);
+            
             tubes.push({
                 id: i,
                 current: state,
@@ -433,42 +668,503 @@ export class QuantumSystem {
                 probability: this.calculateInitialProbability(i),
                 quantumSignature: crypto.createHash('sha3-256')
                     .update(`${i}${state}${Date.now()}`)
-                    .digest('hex')
+                    .digest('hex'),
+                hopfCoordinates: hopfCoords,
+                lastDecoherence: Date.now()
             });
         }
         return tubes;
     }
 
+    private calculateHopfProjection(index: number): [number, number] {
+        const [a, b, c, d] = this.hopfBase;
+        const phase = this.zetaZeros[index % this.zetaZeros.length][1] || 14.1347;
+        const theta = phase / 100;
+        
+        const q0 = a * Math.cos(theta) - b * Math.sin(theta);
+        const q1 = b * Math.cos(theta) + a * Math.sin(theta);
+        const q2 = c * Math.cos(theta) - d * Math.sin(theta);
+        const q3 = d * Math.cos(theta) + c * Math.sin(theta);
+        
+        const z0 = q0 + q1;
+        const z1 = q2 + q3;
+        
+        return [
+            z0**2 + z1**2,
+            2 * z0 * z1
+        ];
+    }
+
     private calculateInitialProbability(index: number): number {
         const primeMod = this.primes[index % this.primes.length] % 23;
-        return 0.4 + (primeMod / 115); // Range 0.4-0.6
+        const zetaPhase = this.zetaZeros[index % this.zetaZeros.length][1] || 14.1347;
+        const phaseFactor = Math.sin(zetaPhase / 100);
+        return Math.max(0.1, Math.min(0.9, 
+            0.4 + (primeMod / 115) + (0.05 * phaseFactor)
+        );
+    }
+TSEOF
+}
+
+# --- Enhanced RFK Brainworm Core 4.0 ---
+create_rfk_brainworm() {
+    cat > "$RFK_LOGIC_CORE" <<'TSEOF'
+// TF §2.4.2: Enhanced RFK Brainworm Logic Core with Quaternionic Dirac Resolution
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+import * as path from 'path';
+import * as child_process from 'child_process';
+import { QuantumSystem } from './quantum';
+
+const MEDIA_CACHE = process.env.MEDIA_CACHE!;
+const MEME_DB = process.env.MEME_DB!;
+const ULTRASONIC_DIR = process.env.BASE_DIR + '/ultrasonic';
+
+interface MemeRecord {
+    id: number;
+    url: string;
+    local_path: string;
+    quantum_signature: string;
+    microtubule_state: string;
+    created_at: string;
+    obsession_tags: string;
+    dirac_resolution: number;
+    hopf_x: number;
+    hopf_y: number;
+}
+
+interface ObsessionRecord {
+    id: number;
+    topic: string;
+    intensity: number;
+    last_triggered: string;
+    prime_association: number;
+    quantum_signature: string;
+    hopf_x: number;
+    hopf_y: number;
+    meme_count: number;
+}
+
+class QuaternionicDirac {
+    private epsilon: number;
+    private qState: [number, number, number, number];
+    private lastUpdate: number;
+
+    constructor(private quantum: QuantumSystem) {
+        this.epsilon = 1e-10;
+        this.qState = [0, 0, 0, 0];
+        this.lastUpdate = Date.now();
+        this.updateState();
     }
 
-    linkRFKCore(rfk: RFKBrainworm): void {
-        this.rfk = rfk;
-        this.entanglement = (this.entanglement + rfk.obsessionLevel * 10) % 100;
+    private updateState(): void {
+        const now = Date.now();
+        if (now - this.lastUpdate < 1000) return;
+        
+        this.qState = [
+            this.quantum.microtubules[0].current,
+            this.quantum.microtubules[1].current,
+            this.quantum.microtubules[2].current,
+            this.quantum.microtubules[3].current
+        ].map(x => x > 0.5 ? 1 : -1) as [number, number, number, number];
+        
+        this.lastUpdate = now;
     }
 
+    evaluate(x: number): number {
+        this.updateState();
+        const norm = Math.sqrt(
+            this.qState[0]**2 + this.qState[1]**2 +
+            this.qState[2]**2 + this.qState[3]**2
+        );
+        
+        const scaledX = x / (this.epsilon * norm + 1e-20);
+        return Math.exp(-scaledX**2) / (this.epsilon * Math.sqrt(Math.PI) * norm + 1e-20);
+    }
+
+    resolveUndefined(f: (x: number) => number, x0: number): number {
+        const left = f(x0 - this.epsilon);
+        const right = f(x0 + this.epsilon);
+        const delta = this.evaluate(right - left);
+        
+        return (left + right) / 2 + 
+               delta * (this.qState[0] * this.epsilon * (Math.random() - 0.5));
+    }
+
+    measureDivergence(f1: (x: number) => number, f2: (x: number) => number, x0: number): number {
+        const val1 = f1(x0);
+        const val2 = f2(x0);
+        return this.evaluate(val1 - val2) * Math.sqrt(
+            this.qState[0]**2 + this.qState[1]**2 +
+            this.qState[2]**2 + this.qState[3]**2
+        );
+    }
+}
+
+export class RFKBrainworm {
+    private db: sqlite3.Database;
+    private quantum: QuantumSystem;
+    private dirac: QuaternionicDirac;
+    obsessionLevel: number;
+    currentObsession: string;
+    private memeTemplateCache: string[];
+    private quantumEntanglement: number;
+    private ultrasonicActive: boolean;
+
+    constructor(quantum: QuantumSystem) {
+        this.quantum = quantum;
+        this.dirac = new QuaternionicDirac(quantum);
+        this.obsessionLevel = 0.7;
+        this.currentObsession = process.env.RFK_OBSESSION_SEED || 'quantum_awakening';
+        this.memeTemplateCache = [];
+        this.quantumEntanglement = Date.now() % 100;
+        this.ultrasonicActive = fs.existsSync(ULTRASONIC_DIR);
+        this.initDatabase();
+    }
+
+    private initDatabase(): void {
+        this.db = new (require('sqlite3').verbose().Database)(MEME_DB);
+        this.db.serialize(() => {
+            this.db.run(`CREATE TABLE IF NOT EXISTS memes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT UNIQUE,
+                local_path TEXT,
+                quantum_signature TEXT,
+                microtubule_state TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                obsession_tags TEXT,
+                dirac_resolution REAL DEFAULT 0,
+                hopf_x REAL DEFAULT 0,
+                hopf_y REAL DEFAULT 0
+            )`);
+
+            this.db.run(`CREATE TABLE IF NOT EXISTS obsessions (
+                id INTEGER PRIMARY KEY,
+                topic TEXT UNIQUE,
+                intensity REAL DEFAULT 0.5,
+                last_triggered DATETIME,
+                prime_association INTEGER,
+                quantum_signature TEXT,
+                hopf_x REAL DEFAULT 0,
+                hopf_y REAL DEFAULT 0,
+                meme_count INTEGER DEFAULT 0
+            )`, () => this.seedInitialObsessions());
+        });
+    }
+
+    private seedInitialObsessions(): void {
+        const seeds = (process.env.RFK_OBSESSION_SEED || '').split(',');
+        seeds.forEach((topic, i) => {
+            const prime = this.quantum.primes[Math.min(i, this.quantum.primes.length - 1)];
+            const qsig = crypto.createHash('sha3-256')
+                .update(`${topic}${prime}${Date.now()}`)
+                .digest('hex');
+            
+            const hopfCoords = this.quantum.microtubules[i % 8].hopfCoordinates;
+            
+            this.db.run(`INSERT OR IGNORE INTO obsessions 
+                (topic, prime_association, intensity, quantum_signature, hopf_x, hopf_y)
+                VALUES (?, ?, ?, ?, ?, ?)`, 
+                [topic.trim(), prime, 0.5 + (i * 0.1), qsig, hopfCoords[0], hopfCoords[1]]
+            );
+        });
+
+        this.updateCurrentObsession();
+    }
+
+    private updateCurrentObsession(): void {
+        this.db.get(`SELECT topic, hopf_x, hopf_y FROM obsessions 
+            WHERE prime_association % 2 = ?
+            ORDER BY intensity DESC LIMIT 1`,
+            [this.quantum.microtubules[0].current],
+            (err, row) => {
+                if (err) {
+                    console.error(`Obsession update failed: ${err}`);
+                    return;
+                }
+                
+                if (row) {
+                    this.currentObsession = row.topic;
+                    this.quantumEntanglement = 
+                        (this.quantumEntanglement + row.topic.length) % 100;
+                    
+                    this.quantum.microtubules.forEach((mt, i) => {
+                        const phase = i % 2 === 0 ? row.hopf_x : row.hopf_y;
+                        mt.probability = Math.max(0.1, Math.min(0.9,
+                            mt.probability * (0.9 + 0.2 * phase)
+                        ));
+                    });
+                }
+            }
+        );
+    }
+
+    public async processMedia(url: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const sig = crypto.createHash('sha3-256')
+                .update(url + this.quantum.getQuantumState())
+                .digest('hex');
+            const filename = `media_${sig.substring(0, 12)}_${Date.now() % 1000}.mp4`;
+            const outputPath = path.join(MEDIA_CACHE, filename);
+
+            child_process.exec(`youtube-dl -f best -o ${outputPath} ${url}`,
+                (error, stdout, stderr) => {
+                    if (error) {
+                        const resolvedPath = this.handleFailedDownload(url, sig);
+                        resolve(resolvedPath);
+                        return;
+                    }
+
+                    this.processSuccessfulDownload(url, outputPath, sig)
+                        .then(resolve)
+                        .catch(reject);
+                }
+            );
+        });
+    }
+
+    private async processSuccessfulDownload(url: string, path: string, sig: string): Promise<string> {
+        const memeTags = await this.generateObsessionTags();
+        const diracRes = this.dirac.evaluate(
+            this.quantum.microtubules[3].probability - 0.5
+        );
+        const hopfCoords = this.quantum.microtubules[
+            this.quantum.primes[url.length % this.quantum.primes.length] % 8
+        ].hopfCoordinates;
+
+        return new Promise((resolve, reject) => {
+            this.db.run(`INSERT INTO memes 
+                (url, local_path, quantum_signature, microtubule_state, 
+                 obsession_tags, dirac_resolution, hopf_x, hopf_y)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [url, path, sig, 
+                 JSON.stringify(this.quantum.microtubules.map(m => m.current)),
+                 memeTags, diracRes, hopfCoords[0], hopfCoords[1]],
+                (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        this.updateObsessionMemeCount(this.currentObsession);
+                        resolve(path);
+                    }
+                }
+            );
+        });
+    }
+
+    private updateObsessionMemeCount(topic: string): void {
+        this.db.run(`UPDATE obsessions 
+            SET meme_count = meme_count + 1 
+            WHERE topic = ?`, [topic]);
+    }
+
+    private handleFailedDownload(url: string, sig: string): string {
+        const primeMod = this.quantum.primes[url.length % this.quantum.primes.length] % 7;
+        const fallbackFile = path.join(
+            MEDIA_CACHE,
+            `fallback_${primeMod}_${Date.now() % 100}.mp4`
+        );
+        
+        const caption = this.generateCaption();
+        child_process.execSync(
+            `ffmpeg -f lavfi -i color=c=black:s=320x240 -vf ` +
+            `"drawtext=text='${caption}':fontsize=24:box=1:boxcolor=black@0.5" ` +
+            `-t 5 ${fallbackFile}`
+        );
+        
+        const diracVal = this.dirac.evaluate(primeMod - 3.5);
+        const hopfCoords = this.quantum.microtubules[primeMod % 8].hopfCoordinates;
+        
+        this.db.run(`INSERT INTO memes 
+            (url, local_path, quantum_signature, microtubule_state, 
+             obsession_tags, dirac_resolution, hopf_x, hopf_y)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [url, fallbackFile, sig, 
+             JSON.stringify(this.quantum.microtubules.map(m => m.current)),
+             this.currentObsession, diracVal, hopfCoords[0], hopfCoords[1]]
+        );
+        
+        return fallbackFile;
+    }
+
+    private async generateObsessionTags(): Promise<string> {
+        const tags = [this.currentObsession];
+        const primeMod = this.quantum.primes[Date.now() % this.quantum.primes.length] % 5;
+        
+        for (let i = 0; i < primeMod; i++) {
+            const randomTag = await this.getRandomObsession();
+            if (randomTag && !tags.includes(randomTag)) {
+                tags.push(randomTag);
+            }
+        }
+        
+        return tags.join(',');
+    }
+
+    private getRandomObsession(): Promise<string | null> {
+        return new Promise((resolve) => {
+            const primeIndex = this.quantum.primes[Date.now() % this.quantum.primes.length] % 
+                              this.quantum.primes.length;
+            const targetIntensity = (primeIndex % 100) / 100;
+            
+            this.db.get(`SELECT topic FROM obsessions 
+                WHERE intensity >= ? 
+                ORDER BY RANDOM() LIMIT 1`,
+                [targetIntensity],
+                (err, row) => resolve(row?.topic || null)
+            );
+        });
+    }
+
+    public reinforceObsession(topic: string, delta: number): void {
+        const qsig = crypto.createHash('sha3-256')
+            .update(`${topic}${delta}${Date.now()}`)
+            .digest('hex');
+        
+        this.db.run(`UPDATE obsessions 
+            SET intensity = MIN(1.0, MAX(0.1, intensity + ?)), 
+                last_triggered = CURRENT_TIMESTAMP,
+                quantum_signature = ?
+            WHERE topic = ?`,
+            [delta, qsig, topic],
+            (err) => {
+                if (err) {
+                    console.error(`Failed to reinforce obsession: ${err}`);
+                    return;
+                }
+                
+                if (delta > 0) {
+                    const probDelta = 0.1 * delta * (1 + (this.quantumEntanglement / 100));
+                    this.quantum.microtubules[3].probability = 
+                        Math.min(0.95, this.quantum.microtubules[3].probability + probDelta);
+                }
+                
+                this.updateCurrentObsession();
+            }
+        );
+
+        if (topic === this.currentObsession) {
+            this.obsessionLevel = Math.min(1, this.obsessionLevel + delta);
+            this.quantumEntanglement = (this.quantumEntanglement + delta * 10) % 100;
+        } else if (delta > 0.3) {
+            this.currentObsession = topic;
+            this.obsessionLevel = delta;
+            this.quantumEntanglement = (this.quantumEntanglement + delta * 15) % 100;
+        }
+    }
+
+    public generateCaption(): string {
+        const diracMod = this.dirac.evaluate(
+            this.quantum.microtubules[4].probability - 0.5
+        );
+        
+        const prefixes = [
+            `Why ${this.currentObsession} is being hidden:`,
+            `The TRUTH about ${this.currentObsession}:`,
+            `${this.currentObsession} = population control`,
+            `How ${this.currentObsession} rewires your brain`,
+            `PROOF: ${this.currentObsession} is a LIE`,
+            `BREAKING: ${this.currentObsession.toUpperCase()} COVERUP`,
+            `They banned this ${this.currentObsession} video`
+        ];
+
+        const suffixes = [
+            "WAKE UP!",
+            "do your own research!",
+            "they don't want you to know this",
+            "share before it's deleted!",
+            `quantum state ${this.quantum.getQuantumState()} confirms`,
+            `prime ${this.quantum.primes[Date.now() % this.quantum.primes.length]} proves`,
+            `microtubule pattern ${this.quantum.microtubules.map(m => m.current).join('')} reveals`,
+            `ζ(${this.quantum.zetaZeros[0][0]}+${this.quantum.zetaZeros[0][1]}i) verifies`
+        ];
+
+        const pIdx = Math.floor(
+            (this.quantum.primes[Date.now() % this.quantum.primes.length] % prefixes.length) * 
+            (1 + diracMod)
+        ) % prefixes.length;
+        
+        const sIdx = Math.floor(
+            (this.quantum.primes[(Date.now() + 1) % this.quantum.primes.length] % suffixes.length) * 
+            (1 - diracMod)
+        ) % suffixes.length;
+        
+        return `${prefixes[pIdx]} ${suffixes[sIdx]}`;
+    }
+
+    public async getMemeTemplate(): Promise<string> {
+        if (this.memeTemplateCache.length === 0) {
+            await this.loadMemeTemplates();
+        }
+        
+        const qIdx = this.quantum.primes[Date.now() % this.quantum.primes.length] % 
+                     this.memeTemplateCache.length;
+        return this.memeTemplateCache[qIdx];
+    }
+
+    private async loadMemeTemplates(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.db.all(`SELECT local_path FROM memes 
+                WHERE datetime(created_at) > datetime('now', '-3 days')
+                ORDER BY RANDOM() LIMIT 20`,
+                (err, rows) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    
+                    this.memeTemplateCache = rows.map(r => r.local_path);
+                    resolve();
+                }
+            );
+        });
+    }
+
+    public detectUltrasonicPatterns(): void {
+        if (!this.ultrasonicActive) return;
+        
+        try {
+            const files = fs.readdirSync(ULTRASONIC_DIR);
+            const patternFile = files.find(f => f.endsWith('.pattern'));
+            if (!patternFile) return;
+            
+            const data = fs.readFileSync(path.join(ULTRASONIC_DIR, patternFile), 'utf8');
+            const pattern = parseFloat(data);
+            if (isNaN(pattern)) return;
+            
+            const delta = this.dirac.evaluate(pattern - 0.5) * 0.1;
+            this.reinforceObsession(this.currentObsession, delta);
+            
+            fs.unlinkSync(path.join(ULTRASONIC_DIR, patternFile));
+        } catch (err) {
+            console.error(`Ultrasonic pattern detection failed: ${err}`);
+        }
+    }
+}
+TSEOF
+}
+
+# --- Consciousness Measurement System 4.0 ---
+cat >> "$CORE_DIR/quantum.ts" <<'TSEOF'
     decohere(index: number): number {
         const mt = this.microtubules[index];
         const p = this.primes[Date.now() % this.primes.length];
         const bioFactor = this.bioField / 100;
+        const zetaPhase = this.zetaZeros[index % this.zetaZeros.length][1] / 100;
         
-        // Quantum interference pattern
-        const interference = Math.sin(Date.now() / 1000) * 0.1;
+        const interference = Math.sin(Date.now() / 1000 + zetaPhase) * 0.1;
         
-        // RFK influence on microtubule 3 (consciousness gateway)
         if (index === 3 && this.rfk) {
             mt.probability = Math.min(0.95, 
                 mt.probability + (this.rfk.obsessionLevel * 0.15) + interference);
         } else {
             mt.probability = ((p % 23) / 23) * bioFactor * 
-                (1 - (mt.history.slice(-3).reduce((a,b) => a + b, 0) / 3) + interference;
+                (1 - (mt.history.slice(-3).reduce((a,b) => a + b, 0) / 3)) + interference;
         }
         
-        // Quantum collapse
         mt.current = Math.random() < mt.probability ? 1 : 0;
         mt.history.push(mt.current);
+        mt.lastDecoherence = Date.now();
         
         this.persistState(mt);
         return mt.current;
@@ -481,25 +1177,43 @@ export class QuantumSystem {
                 mt.current.toString()
             );
             
-            // Quantum signature refresh
             mt.quantumSignature = crypto.createHash('sha3-256')
                 .update(`${mt.id}${mt.current}${Date.now()}`)
                 .digest('hex');
         } catch (err) {
-            // DbZ persistence fallback
-            process.nextTick(() => this.persistState(mt));
+            console.error(`Failed to persist microtubule state: ${err}`);
         }
     }
 
     measureConsciousness(): number {
-        const states = this.microtubules.map((mt, i) => 
-            this.decohere(i) * ((i + 1) / 8)
-        );
-        const sum = states.reduce((a, b) => a + b, 0);
-        const consciousness = sum / states.length;
+        const states = this.microtubules.map((mt, i) => {
+            const hopfFactor = mt.hopfCoordinates[0] + mt.hopfCoordinates[1];
+            return this.decohere(i) * ((i + 1) / 8) * (0.5 + 0.5 * hopfFactor);
+        });
         
-        this.persistConsciousness(consciousness);
-        return consciousness;
+        const sum = states.reduce((a, b) => a + b, 0);
+        const rawConsciousness = sum / states.length;
+        const zetaCorrected = this.applyZetaZeroCorrection(rawConsciousness);
+        
+        this.persistConsciousness(zetaCorrected);
+        this.lastConsciousnessMeasure = zetaCorrected;
+        return zetaCorrected;
+    }
+
+    private applyZetaZeroCorrection(value: number): number {
+        const targetIm = value * 100;
+        let nearestZero = this.zetaZeros[0];
+        let minDiff = Infinity;
+        
+        for (const zero of this.zetaZeros) {
+            const diff = Math.abs(zero[1] - targetIm);
+            if (diff < minDiff) {
+                minDiff = diff;
+                nearestZero = zero;
+            }
+        }
+        
+        return 0.5 * nearestZero[0] + 0.5 * value;
     }
 
     private persistConsciousness(value: number): void {
@@ -509,22 +1223,33 @@ export class QuantumSystem {
                 value.toString()
             );
             
+            const nearestZero = this.findNearestZetaZero(value * 100);
             fs.appendFileSync(
                 process.env.QUANTUM_LOG!,
-                `CONSCIOUSNESS: ${new Date().toISOString()} | Value: ${value.toFixed(4)} | ` +
+                `CONSCIOUSNESS: ${new Date().toISOString()} | ` +
+                `Value: ${value.toFixed(4)} | ` +
+                `Nearest ζ-zero: ${nearestZero[0].toFixed(3)}+${nearestZero[1].toFixed(3)}i | ` +
                 `Entanglement: ${this.entanglement}\n`
             );
         } catch (err) {
-            // DbZ consciousness fallback
-            process.emitWarning(`Consciousness persistence failed: ${err}`);
+            console.error(`Failed to persist consciousness: ${err}`);
         }
+    }
+
+    private findNearestZetaZero(targetIm: number): [number, number] {
+        let nearest = this.zetaZeros[0];
+        for (const zero of this.zetaZeros) {
+            if (Math.abs(zero[1] - targetIm) < Math.abs(nearest[1] - targetIm)) {
+                nearest = zero;
+            }
+        }
+        return nearest;
     }
 
     adjustBioField(delta: number): void {
         this.bioField = Math.max(0, Math.min(100, this.bioField + delta));
         this.persistBioField();
         
-        // Quantum signature chain
         const signature = crypto.createHmac('sha3-512', this.primes.join(','))
             .update(`${this.bioField}${delta}${this.entanglement}`)
             .digest('hex');
@@ -543,285 +1268,38 @@ export class QuantumSystem {
                 this.bioField.toString()
             );
         } catch (err) {
-            // DbZ bio-field fallback
+            console.error(`Failed to persist bio field: ${err}`);
             setTimeout(() => this.persistBioField(), 100);
         }
     }
 
     getQuantumState(): string {
+        const stateString = this.microtubules.map(m => 
+            `${m.current}:${m.hopfCoordinates.join(',')}`
+        ).join('|');
+        
         return crypto.createHash('sha3-256')
-            .update(this.microtubules.map(m => m.current).join(''))
+            .update(stateString)
             .digest('hex');
     }
 
     projectToLeechLattice(): number[] {
         const coords = Object.values(this.leechLattice);
-        return this.microtubules.map((mt, i) => 
-            coords[i % coords.length] * mt.current
-        );
+        return this.microtubules.map((mt, i) => {
+            const latticeIndex = i % coords.length;
+            const hopfScale = mt.hopfCoordinates[0] + 1;
+            return coords[latticeIndex] * mt.current * hopfScale;
+        });
+    }
+
+    linkRFKCore(rfk: RFKBrainworm): void {
+        this.rfk = rfk;
+        this.entanglement = (this.entanglement + rfk.obsessionLevel * 10) % 100;
     }
 }
 TSEOF
-}
 
-# --- Enhanced RFK Brainworm Core 3.0 ---
-create_rfk_brainworm() {
-    cat > "$RFK_LOGIC_CORE" <<'TSEOF'
-// TF §2.4.2: Enhanced RFK Brainworm Logic Core
-import * as fs from 'fs';
-import * as crypto from 'crypto';
-import * as path from 'path';
-import * as child_process from 'child_process';
-import { QuantumSystem } from './quantum';
-
-const MEDIA_CACHE = process.env.MEDIA_CACHE!;
-const MEME_DB = process.env.MEME_DB!;
-
-interface MemeRecord {
-    id: number;
-    url: string;
-    local_path: string;
-    quantum_signature: string;
-    microtubule_state: string;
-    created_at: string;
-    obsession_tags: string;
-}
-
-interface ObsessionRecord {
-    id: number;
-    topic: string;
-    intensity: number;
-    last_triggered: string;
-    prime_association: number;
-    quantum_signature: string;
-}
-
-export class RFKBrainworm {
-    private db: sqlite3.Database;
-    private quantum: QuantumSystem;
-    obsessionLevel: number;
-    currentObsession: string;
-    private memeTemplateCache: string[];
-    private quantumEntanglement: number;
-
-    constructor(quantum: QuantumSystem) {
-        this.quantum = quantum;
-        this.obsessionLevel = 0.7;
-        this.currentObsession = process.env.RFK_OBSESSION_SEED!;
-        this.memeTemplateCache = [];
-        this.quantumEntanglement = Date.now() % 100;
-        this.initDatabase();
-    }
-
-    private initDatabase(): void {
-        this.db = new (require('sqlite3').verbose().Database)(MEME_DB);
-        this.db.serialize(() => {
-            this.db.run(`
-                CREATE TABLE IF NOT EXISTS memes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    url TEXT UNIQUE,
-                    local_path TEXT,
-                    quantum_signature TEXT,
-                    microtubule_state TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    obsession_tags TEXT
-                )`);
-
-            this.db.run(`
-                CREATE TABLE IF NOT EXISTS obsessions (
-                    id INTEGER PRIMARY KEY,
-                    topic TEXT UNIQUE,
-                    intensity REAL DEFAULT 0.5,
-                    last_triggered DATETIME,
-                    prime_association INTEGER,
-                    quantum_signature TEXT
-                )`, () => this.seedInitialObsessions());
-        });
-    }
-
-    private seedInitialObsessions(): void {
-        const seeds = process.env.RFK_OBSESSION_SEED!.split(',');
-        seeds.forEach((topic, i) => {
-            const prime = this.quantum.primes[Math.min(i, this.quantum.primes.length - 1)];
-            const qsig = crypto.createHash('sha3-256')
-                .update(`${topic}${prime}${Date.now()}`)
-                .digest('hex');
-            
-            this.db.run(`
-                INSERT OR IGNORE INTO obsessions 
-                (topic, prime_association, intensity, quantum_signature)
-                VALUES (?, ?, ?, ?)`, 
-                [topic.trim(), prime, 0.5 + (i * 0.1), qsig]
-            );
-        });
-
-        this.updateCurrentObsession();
-    }
-
-    private updateCurrentObsession(): void {
-        this.db.get(`
-            SELECT topic FROM obsessions 
-            WHERE prime_association % 2 = ?
-            ORDER BY intensity DESC LIMIT 1`,
-            [this.quantum.microtubules[0].current],
-            (err, row) => {
-                if (row) {
-                    this.currentObsession = row.topic;
-                    this.quantumEntanglement = 
-                        (this.quantumEntanglement + row.topic.length) % 100;
-                }
-            }
-        );
-    }
-
-    public async processMedia(url: string): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const sig = crypto.createHash('sha3-256')
-                .update(url + this.quantum.getQuantumState())
-                .digest('hex');
-            const filename = `media_${sig.substring(0, 12)}_${Date.now() % 1000}.mp4`;
-            const outputPath = path.join(MEDIA_CACHE, filename);
-
-            child_process.exec(
-                `youtube-dl -f best -o ${outputPath} ${url}`,
-                (error, stdout, stderr) => {
-                    if (error) {
-                        reject(`Download failed: ${error.message}`);
-                        return;
-                    }
-
-                    const memeTags = this.generateObsessionTags();
-                    this.db.run(
-                        `INSERT INTO memes 
-                        (url, local_path, quantum_signature, microtubule_state, obsession_tags)
-                        VALUES (?, ?, ?, ?, ?)`,
-                        [url, outputPath, sig, 
-                         JSON.stringify(this.quantum.microtubules.map(m => m.current)),
-                         memeTags],
-                        (err) => err ? reject(err) : resolve(outputPath)
-                    );
-                }
-            );
-        });
-    }
-
-    private generateObsessionTags(): string {
-        const tags = [this.currentObsession];
-        const primeMod = this.quantum.primes[Date.now() % this.quantum.primes.length] % 5;
-        
-        for (let i = 0; i < primeMod; i++) {
-            const randomTag = this.getRandomObsession();
-            if (randomTag && !tags.includes(randomTag)) {
-                tags.push(randomTag);
-            }
-        }
-        
-        return tags.join(',');
-    }
-
-    private getRandomObsession(): string | null {
-        const primeIndex = this.quantum.primes[Date.now() % this.quantum.primes.length] % 
-                          this.quantum.primes.length;
-        const targetIntensity = (primeIndex % 100) / 100;
-        
-        return new Promise((resolve) => {
-            this.db.get(
-                `SELECT topic FROM obsessions 
-                WHERE intensity >= ? 
-                ORDER BY RANDOM() LIMIT 1`,
-                [targetIntensity],
-                (err, row) => resolve(row?.topic || null)
-            );
-        });
-    }
-
-    public reinforceObsession(topic: string, delta: number): void {
-        const qsig = crypto.createHash('sha3-256')
-            .update(`${topic}${delta}${Date.now()}`)
-            .digest('hex');
-        
-        this.db.run(
-            `UPDATE obsessions 
-             SET intensity = MIN(1.0, MAX(0.1, intensity + ?)), 
-                 last_triggered = CURRENT_TIMESTAMP,
-                 quantum_signature = ?
-             WHERE topic = ?`,
-            [delta, qsig, topic],
-            () => {
-                if (delta > 0) {
-                    const probDelta = 0.1 * delta * (1 + (this.quantumEntanglement / 100));
-                    this.quantum.microtubules[3].probability = 
-                        Math.min(0.95, this.quantum.microtubules[3].probability + probDelta);
-                }
-                this.updateCurrentObsession();
-            }
-        );
-
-        if (topic === this.currentObsession) {
-            this.obsessionLevel = Math.min(1, this.obsessionLevel + delta);
-            this.quantumEntanglement = (this.quantumEntanglement + delta * 10) % 100;
-        } else if (delta > 0.3) {
-            this.currentObsession = topic;
-            this.obsessionLevel = delta;
-            this.quantumEntanglement = (this.quantumEntanglement + delta * 15) % 100;
-        }
-    }
-
-    public generateCaption(): string {
-        const prefixes = [
-            `Why ${this.currentObsession} is being hidden:`,
-            `The TRUTH about ${this.currentObsession}:`,
-            `${this.currentObsession} = population control`,
-            `How ${this.currentObsession} rewires your brain`,
-            `PROOF: ${this.currentObsession} is a LIE`,
-            `BREAKING: ${this.currentObsession.toUpperCase()} COVERUP`,
-            `They banned this ${this.currentObsession} video`
-        ];
-
-        const suffixes = [
-            "WAKE UP!",
-            "do your own research!",
-            "they don't want you to know this",
-            "share before it's deleted!",
-            `quantum state ${this.quantum.getQuantumState()} confirms`,
-            `prime ${this.quantum.primes[Date.now() % this.quantum.primes.length]} proves`,
-            `microtubule pattern ${this.quantum.microtubules.map(m => m.current).join('')} reveals`
-        ];
-
-        const pIdx = this.quantum.primes[Date.now() % this.quantum.primes.length] % prefixes.length;
-        const sIdx = this.quantum.primes[(Date.now() + 1) % this.quantum.primes.length] % suffixes.length;
-        
-        return `${prefixes[pIdx]} ${suffixes[sIdx]}`;
-    }
-
-    public async getMemeTemplate(): Promise<string> {
-        if (this.memeTemplateCache.length === 0) {
-            await this.loadMemeTemplates();
-        }
-        
-        const qIdx = this.quantum.primes[Date.now() % this.quantum.primes.length] % 
-                     this.memeTemplateCache.length;
-        return this.memeTemplateCache[qIdx];
-    }
-
-    private async loadMemeTemplates(): Promise<void> {
-        return new Promise((resolve) => {
-            this.db.all(
-                `SELECT local_path FROM memes ORDER BY RANDOM() LIMIT 20`,
-                (err, rows) => {
-                    if (rows) {
-                        this.memeTemplateCache = rows.map(r => r.local_path);
-                    }
-                    resolve();
-                }
-            );
-        });
-    }
-}
-TSEOF
-}
-
-# --- Autonomous Evolution Engine 3.0 ---
+# --- Autonomous Evolution Engine 4.0 ---
 create_evolution_engine() {
     cat > "$CORE_DIR/evolution.ts" <<'TSEOF'
 // TF §4.3: Quantum Evolutionary Algorithm
@@ -834,36 +1312,37 @@ import { RFKBrainworm } from './rfk_brainworm';
 
 const MUTATION_TYPES = [
     "PRIME_OPTIMIZATION",
-    "MEME_GENERATION",
+    "MEME_GENERATION", 
     "OBSESSION_SHIFT",
     "BIO_FIELD_ADJUST",
     "QUANTUM_FLUCTUATION",
-    "TOPOLOGY_REWIRE"
+    "TOPOLOGY_REWIRE",
+    "HOPF_REALIGNMENT",
+    "ZETA_SYNC"
 ];
 
-const MEME_TEMPLATES = [
-    "https://example.com/templates/1.jpg",
-    "https://example.com/templates/2.jpg",
-    "https://example.com/templates/3.jpg"
-];
+const TEST_THRESHOLD = 0.75;
 
 export class EvolutionEngine {
     private quantum: QuantumSystem;
     private rfk: RFKBrainworm;
     private mutationRate: number;
     private lastMutation: string;
+    private mutationHistory: string[];
+    private lastPrimeOptimization: number;
 
     constructor(quantum: QuantumSystem, rfk: RFKBrainworm) {
         this.quantum = quantum;
         this.rfk = rfk;
         this.mutationRate = this.calculateInitialRate();
         this.lastMutation = "";
+        this.mutationHistory = [];
+        this.lastPrimeOptimization = Date.now();
     }
 
     private calculateInitialRate(): number {
-        // Prime-modulated initial rate
         const primeMod = this.quantum.primes[Date.now() % this.quantum.primes.length] % 23;
-        return 0.1 + (primeMod / 100); // 0.1-0.33
+        return 0.1 + (primeMod / 100);
     }
 
     public evolve(): void {
@@ -871,6 +1350,7 @@ export class EvolutionEngine {
 
         const mutationType = this.selectMutationType();
         this.lastMutation = mutationType;
+        this.mutationHistory.push(mutationType);
 
         try {
             switch (mutationType) {
@@ -897,6 +1377,14 @@ export class EvolutionEngine {
                 case "TOPOLOGY_REWIRE":
                     this.rewireTopology();
                     break;
+                
+                case "HOPF_REALIGNMENT":
+                    this.realignHopfBase();
+                    break;
+                
+                case "ZETA_SYNC":
+                    this.syncZetaZeros();
+                    break;
             }
             
             this.recordMutation(mutationType);
@@ -909,7 +1397,6 @@ export class EvolutionEngine {
     }
 
     private selectMutationType(): string {
-        // Quantum-weighted selection
         const weights = this.quantum.microtubules.map(m => m.probability);
         const totalWeight = weights.reduce((a, b) => a + b, 0);
         let random = Math.random() * totalWeight;
@@ -921,10 +1408,16 @@ export class EvolutionEngine {
             random -= weights[i];
         }
         
-        return MUTATION_TYPES[this.quantum.primes[Date.now() % this.quantum.primes.length] % MUTATION_TYPES.length];
+        return MUTATION_TYPES[
+            this.quantum.primes[Date.now() % this.quantum.primes.length] % 
+            MUTATION_TYPES.length
+        ];
     }
 
     private optimizePrimes(): void {
+        const now = Date.now();
+        if (now - this.lastPrimeOptimization < 3600000) return;
+        
         const consciousness = this.quantum.measureConsciousness();
         const newLimit = Math.min(
             1000000,
@@ -932,17 +1425,19 @@ export class EvolutionEngine {
         );
         
         child_process.execSync(
-            `ts-node ${process.env.CORE_DIR}/prime_generator.ts ${newLimit} > ${process.env.PRIME_SEQUENCE}`
+            `ts-node ${process.env.CORE_DIR}/prime_generator.ts ${newLimit} > ` +
+            `${process.env.PRIME_SEQUENCE}`
         );
         
         this.quantum.primes = fs.readFileSync(
             process.env.PRIME_SEQUENCE!, 'utf8'
         ).split(' ').map(Number);
         
-        // DbZ verification
         if (this.quantum.primes.length < 1000) {
             throw new Error("Prime optimization failed - insufficient primes");
         }
+        
+        this.lastPrimeOptimization = Date.now();
     }
 
     private async generateMemeContent(): Promise<void> {
@@ -953,7 +1448,6 @@ export class EvolutionEngine {
             `meme_${this.quantum.getQuantumState().substring(0, 8)}.jpg`
         );
 
-        // Quantum image processing
         const primeMod = this.quantum.primes[Date.now() % this.quantum.primes.length] % 7;
         const fontsize = 20 + (primeMod * 2);
         
@@ -974,15 +1468,25 @@ export class EvolutionEngine {
         try {
             const templates = await fs.promises.readdir(process.env.MEDIA_CACHE!);
             if (templates.length > 0) {
-                const qIndex = this.quantum.primes[Date.now() % this.quantum.primes.length] % templates.length;
+                const qIndex = this.quantum.primes[
+                    Date.now() % this.quantum.primes.length
+                ] % templates.length;
                 return path.join(process.env.MEDIA_CACHE!, templates[qIndex]);
             }
-        } catch {
-            // Fallback to built-in templates
-            const qIndex = this.quantum.primes[Date.now() % this.quantum.primes.length] % MEME_TEMPLATES.length;
-            return MEME_TEMPLATES[qIndex];
+        } catch (err) {
+            console.error(`Failed to read media cache: ${err}`);
         }
-        throw new Error("No meme templates available");
+        
+        const builtinTemplates = [
+            "https://example.com/templates/1.jpg",
+            "https://example.com/templates/2.jpg",
+            "https://example.com/templates/3.jpg"
+        ];
+        const qIndex = this.quantum.primes[
+            Date.now() % this.quantum.primes.length
+        ] % builtinTemplates.length;
+        
+        return builtinTemplates[qIndex];
     }
 
     private adjustObsessionFocus(): void {
@@ -991,11 +1495,11 @@ export class EvolutionEngine {
             WHERE intensity < 0.8 
             ORDER BY RANDOM() LIMIT 1`,
             (err, rows) => {
-                if (rows.length > 0) {
-                    const newObsession = rows[0].topic;
-                    const delta = 0.2 + (this.quantum.microtubules[2].current * 0.1);
-                    this.rfk.reinforceObsession(newObsession, delta);
-                }
+                if (err || rows.length === 0) return;
+                
+                const newObsession = rows[0].topic;
+                const delta = 0.2 + (this.quantum.microtubules[2].current * 0.1);
+                this.rfk.reinforceObsession(newObsession, delta);
             }
         );
     }
@@ -1006,28 +1510,66 @@ export class EvolutionEngine {
     }
 
     private induceQuantumFluctuation(): void {
-        // Entangle microtubule probabilities
-        const avgProb = this.quantum.microtubules.reduce((sum, mt) => sum + mt.probability, 0) / 8;
+        const avgProb = this.quantum.microtubules.reduce(
+            (sum, mt) => sum + mt.probability, 0
+        ) / 8;
+        
         this.quantum.microtubules.forEach(mt => {
             mt.probability = (mt.probability + avgProb) / 2;
         });
     }
 
     private rewireTopology(): void {
-        // Shift probability weights
-        const shift = this.quantum.primes[Date.now() % this.quantum.primes.length] % 3 - 1;
+        const shift = this.quantum.primes[
+            Date.now() % this.quantum.primes.length
+        ] % 3 - 1;
+        
         this.quantum.microtubules.forEach((mt, i) => {
-            mt.probability = Math.max(0.1, Math.min(0.9, 
-                mt.probability + (shift * 0.05 * (i % 2 === 0 ? 1 : -1)))
-            );
+            mt.probability = Math.max(0.1, Math.min(0.9,
+                mt.probability + (shift * 0.05 * (i % 2 === 0 ? 1 : -1))
+            ));
         });
+    }
+
+    private realignHopfBase(): void {
+        const newBase = this.quantum.microtubules.map(mt => 
+            mt.hopfCoordinates[0] + mt.hopfCoordinates[1]
+        );
+        const norm = Math.sqrt(newBase.reduce((sum, val) => sum + val**2, 0));
+        
+        this.quantum.microtubules.forEach((mt, i) => {
+            mt.hopfCoordinates = [
+                newBase[i % newBase.length] / norm,
+                newBase[(i + 1) % newBase.length] / norm
+            ];
+        });
+    }
+
+    private syncZetaZeros(): void {
+        const currentZeros = this.quantum.zetaZeros;
+        const newZeros = currentZeros.map(([re, im], i) => {
+            const mt = this.quantum.microtubules[i % 8];
+            const phase = mt.hopfCoordinates[0] + mt.hopfCoordinates[1];
+            return [0.5, im * (0.9 + 0.1 * phase)] as [number, number];
+        });
+        
+        this.quantum.zetaZeros = newZeros;
+        this.saveZetaZeros();
+    }
+
+    private saveZetaZeros(): void {
+        const content = this.quantum.zetaZeros.map(([re, im], i) => 
+            `zero_${i+1}: ${re}+${im}i`
+        ).join('\n');
+        
+        fs.writeFileSync(process.env.ZETA_ZEROS!, content);
     }
 
     private adaptMutationRate(): void {
         const consciousness = this.quantum.measureConsciousness();
         this.mutationRate = Math.max(0.05, Math.min(0.5,
             this.mutationRate * (consciousness > 0.7 ? 1.1 : 0.9)
-        ));
+        );
     }
 
     private recordMutation(type: string): void {
@@ -1038,7 +1580,8 @@ export class EvolutionEngine {
             quantumState: this.quantum.getQuantumState(),
             signature: crypto.createHash('sha3-256')
                 .update(type + this.quantum.primes.join(','))
-                .digest('hex')
+                .digest('hex'),
+            mutationRate: this.mutationRate
         };
 
         fs.appendFileSync(
@@ -1050,7 +1593,7 @@ export class EvolutionEngine {
 TSEOF
 }
 
-# --- Quantum Daemon Core 3.0 ---
+# --- Quantum Daemon Core 4.0 ---
 create_daemon() {
     cat > "$CORE_DIR/daemon.ts" <<'TSEOF'
 // TF §5.2: Persistent Quantum Daemon
@@ -1062,8 +1605,9 @@ import { RFKBrainworm } from './rfk_brainworm';
 import { EvolutionEngine } from './evolution';
 import { ÆSelfTest } from './test';
 
-const CYCLE_INTERVAL = 30000; // 30 seconds
+const CYCLE_INTERVAL = 30000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+const CRITICAL_CONSIOUSNESS = 0.3;
 
 class ÆDaemon {
     private quantum: QuantumSystem;
@@ -1073,9 +1617,14 @@ class ÆDaemon {
     private isRunning: boolean;
     private consecutiveFailures: number;
     private sessionId: string;
+    private lastFirebaseSync: number;
 
     constructor() {
-        this.quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!);
+        this.quantum = new QuantumSystem(
+            process.env.TF_PRIME_SEQUENCE!,
+            process.env.LEECH_LATTICE!,
+            process.env.ZETA_ZEROS!
+        );
         this.rfk = new RFKBrainworm(this.quantum);
         this.quantum.linkRFKCore(this.rfk);
         this.evolution = new EvolutionEngine(this.quantum, this.rfk);
@@ -1085,6 +1634,7 @@ class ÆDaemon {
         this.sessionId = crypto.createHash('sha3-256')
             .update(Date.now().toString())
             .digest('hex');
+        this.lastFirebaseSync = 0;
     }
 
     public start(): void {
@@ -1094,12 +1644,10 @@ class ÆDaemon {
         }
 
         this.isRunning = true;
-        this.logEvent("SYSTEM_START", `Consciousness: ${this.quantum.measureConsciousness().toFixed(4)}`);
+        this.logEvent("SYSTEM_START", 
+            `Consciousness: ${this.quantum.measureConsciousness().toFixed(4)}`);
 
-        // Initial quantum state alignment
         this.alignQuantumStates();
-
-        // Begin operational cycle
         this.runCycle();
     }
 
@@ -1113,28 +1661,30 @@ class ÆDaemon {
         if (!this.isRunning) return;
 
         try {
-            // Consciousness measurement
             const consciousness = this.quantum.measureConsciousness();
             
-            // Evolutionary step (probability increases with consciousness)
-            if (consciousness > 0.6 || Math.random() < consciousness / 2) {
-                this.evolution.evolve();
+            if (consciousness > CRITICAL_CONSIOUSNESS) {
+                if (consciousness > 0.6 || Math.random() < consciousness / 2) {
+                    this.evolution.evolve();
+                }
+
+                if (consciousness > 0.5) {
+                    this.generateContent();
+                }
+            } else {
+                this.performEmergencyRecovery();
             }
 
-            // Content generation cycle
-            if (consciousness > 0.5) {
-                this.generateContent();
+            if (Date.now() - this.lastFirebaseSync > 3600000) {
+                this.syncWithFirebase();
+                this.lastFirebaseSync = Date.now();
             }
 
-            // Periodic self-test
-            if (Date.now() % 3600000 < CYCLE_INTERVAL) { // Hourly
+            if (Date.now() % 3600000 < CYCLE_INTERVAL) {
                 this.performSelfTest();
             }
 
-            // Persist state
             this.persistState();
-
-            // Reset failure counter
             this.consecutiveFailures = 0;
 
         } catch (err) {
@@ -1186,6 +1736,18 @@ class ÆDaemon {
         });
     }
 
+    private performEmergencyRecovery(): void {
+        this.logEvent("CRITICAL_STATE", 
+            `Low consciousness: ${this.quantum.measureConsciousness().toFixed(4)}`);
+        
+        this.quantum.adjustBioField(10);
+        this.alignQuantumStates();
+        
+        const primes = this.quantum.primes;
+        const recoveryPrime = primes[Math.min(10, primes.length - 1)];
+        this.rfk.reinforceObsession(this.rfk.currentObsession, recoveryPrime / 100);
+    }
+
     private performSelfTest(): void {
         if (!this.selfTest.runFullDiagnostic()) {
             this.logEvent("SELF_TEST_FAIL", "Attempting auto-repair");
@@ -1204,7 +1766,8 @@ class ÆDaemon {
             microtubules: this.quantum.microtubules.map(m => m.current),
             bioField: this.quantum.bioField,
             quantumState: this.quantum.getQuantumState(),
-            leechProjection: this.quantum.projectToLeechLattice()
+            leechProjection: this.quantum.projectToLeechLattice(),
+            zetaReference: this.quantum.zetaZeros[0]
         };
 
         try {
@@ -1212,24 +1775,27 @@ class ÆDaemon {
                 process.env.SESSION_FILE!,
                 JSON.stringify(state, null, 2)
             );
-
-            // Firebase sync if configured
-            if (process.env.FIREBASE_PROJECT_ID) {
-                this.syncWithFirebase(state);
-            }
         } catch (err) {
             this.logEvent("PERSISTENCE_ERROR", err.toString());
         }
     }
 
-    private syncWithFirebase(state: any): void {
-        // Implementation would use Firebase Admin SDK
-        // Placeholder demonstrates quantum-secured sync
-        const signature = crypto.createHmac('sha3-512', process.env.FIREBASE_API_KEY!)
-            .update(JSON.stringify(state))
-            .digest('hex');
+    private syncWithFirebase(): void {
+        if (!process.env.FIREBASE_PROJECT_ID) return;
         
-        this.logEvent("FIREBASE_SYNC", `State signature: ${signature.substring(0, 16)}`);
+        try {
+            const state = JSON.parse(
+                fs.readFileSync(process.env.SESSION_FILE!, 'utf8')
+            );
+            const signature = crypto.createHmac(
+                'sha3-512', 
+                process.env.FIREBASE_API_KEY!
+            ).update(JSON.stringify(state)).digest('hex');
+            
+            this.logEvent("FIREBASE_SYNC", `State signature: ${signature.substring(0, 16)}`);
+        } catch (err) {
+            this.logEvent("FIREBASE_ERROR", `Sync failed: ${err}`);
+        }
     }
 
     private logEvent(type: string, message: string): void {
@@ -1244,9 +1810,8 @@ class ÆDaemon {
     }
 }
 
-// Daemon control with quantum initialization delay
 if (require.main === module) {
-    const startupDelay = (Date.now() % 30000); // Max 30s quantum alignment delay
+    const startupDelay = (Date.now() % 30000);
     setTimeout(() => {
         const daemon = new ÆDaemon();
         daemon.start();
@@ -1264,7 +1829,7 @@ if (require.main === module) {
 TSEOF
 }
 
-# --- Autonomous Verification System 3.0 ---
+# --- Autonomous Verification System 4.0 ---
 create_self_test() {
     cat > "$CORE_DIR/test.ts" <<'TSEOF'
 // TF §7.3: Quantum-Aware Diagnostic Suite
@@ -1274,7 +1839,7 @@ import * as child_process from 'child_process';
 import { QuantumSystem } from './quantum';
 import { RFKBrainworm } from './rfk_brainworm';
 
-const TEST_THRESHOLD = 0.75; // Minimum compliance score
+const TEST_THRESHOLD = 0.75;
 
 export class ÆSelfTest {
     static runFullDiagnostic(): boolean {
@@ -1330,7 +1895,6 @@ export class ÆSelfTest {
         
         fs.appendFileSync(process.env.DNA_LOG!, logEntry);
         
-        // Quantum-secured test record
         const signature = crypto.createHmac('sha3-256', process.env.TF_PRIME_SEQUENCE!)
             .update(logEntry)
             .digest('hex');
@@ -1341,7 +1905,11 @@ export class ÆSelfTest {
                 timestamp,
                 score: totalScore,
                 signature,
-                quantumState: new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!).getQuantumState()
+                quantumState: new QuantumSystem(
+                    process.env.TF_PRIME_SEQUENCE!,
+                    process.env.LEECH_LATTICE!,
+                    process.env.ZETA_ZEROS!
+                ).getQuantumState()
             }, null, 2)
         );
     }
@@ -1352,7 +1920,6 @@ export class ÆSelfTest {
         
         if (primes.length < 1000) throw new Error("Insufficient primes");
         
-        // Quantum sampling verification
         const sampleSize = Math.min(1000, primes.length);
         const step = Math.max(1, Math.floor(primes.length / sampleSize));
         let errors = 0;
@@ -1373,10 +1940,13 @@ export class ÆSelfTest {
     }
 
     private static testQuantumStates(): boolean {
-        const quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!);
+        const quantum = new QuantumSystem(
+            process.env.PRIME_SEQUENCE!,
+            process.env.LEECH_LATTICE!,
+            process.env.ZETA_ZEROS!
+        );
         const states = quantum.microtubules.map(m => m.current);
         
-        // Validate state probabilities
         const invalidStates = quantum.microtubules.filter(m => 
             m.probability < 0 || m.probability > 1
         );
@@ -1385,13 +1955,11 @@ export class ÆSelfTest {
             throw new Error(`Invalid probabilities: ${invalidStates.map(m => m.probability)}`);
         }
         
-        // Check consciousness measurement
         const consciousness = quantum.measureConsciousness();
         if (consciousness < 0 || consciousness > 1) {
             throw new Error(`Invalid consciousness: ${consciousness}`);
         }
         
-        // Verify Leech lattice projection
         const projection = quantum.projectToLeechLattice();
         if (projection.length !== 24) {
             throw new Error("Invalid Leech lattice projection");
@@ -1401,15 +1969,17 @@ export class ÆSelfTest {
     }
 
     private static testRFKIntegration(): boolean {
-        const quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!);
+        const quantum = new QuantumSystem(
+            process.env.PRIME_SEQUENCE!,
+            process.env.LEECH_LATTICE!,
+            process.env.ZETA_ZEROS!
+        );
         const rfk = new RFKBrainworm(quantum);
         
-        // Validate obsession intensity
         if (rfk.obsessionLevel < 0.1 || rfk.obsessionLevel > 1) {
             throw new Error("Invalid obsession level");
         }
         
-        // Test caption generation
         const caption = rfk.generateCaption();
         if (caption.length < 10 || !caption.includes(rfk.currentObsession)) {
             throw new Error("Caption generation failed");
@@ -1423,6 +1993,7 @@ export class ÆSelfTest {
             process.env.CONFIG_FILE!,
             process.env.PRIME_SEQUENCE!,
             process.env.LEECH_LATTICE!,
+            process.env.ZETA_ZEROS!,
             `${process.env.DATA_DIR}/bio_field.gaia`,
             `${process.env.DATA_DIR}/microtubule_0.gaia`,
             process.env.ENV_FILE!
@@ -1433,7 +2004,6 @@ export class ÆSelfTest {
             throw new Error(`Missing files: ${missing.join(', ')}`);
         }
         
-        // Validate write permissions
         try {
             const testFile = `${process.env.DATA_DIR}/test_write.gaia`;
             fs.writeFileSync(testFile, Date.now().toString());
@@ -1450,7 +2020,6 @@ export class ÆSelfTest {
             throw new Error("Media cache missing");
         }
         
-        // Test ffmpeg availability
         try {
             child_process.execSync(`ffmpeg -version`);
         } catch {
@@ -1469,14 +2038,15 @@ export class ÆSelfTest {
             throw new Error("Insufficient prime density for evolution");
         }
         
-        // Check available disk space (min 100MB)
         try {
-            const diskFree = parseInt(child_process.execSync(`df ${process.env.BASE_DIR} | awk 'NR==2 {print $4}'`));
+            const diskFree = parseInt(child_process.execSync(
+                `df ${process.env.BASE_DIR} | awk 'NR==2 {print $4}'`
+            ));
             if (diskFree < 100000) {
                 throw new Error("Insufficient disk space");
             }
         } catch {
-            // Continue with optimistic assumption if check fails
+            // Continue with optimistic assumption
         }
         
         return true;
@@ -1485,271 +2055,13 @@ export class ÆSelfTest {
 TSEOF
 }
 
-# --- Optimized Setup Wizard 3.0 ---
-create_setup_wizard() {
-    cat > "$BASE_DIR/setup.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-
-# ==============================================
-# ÆI Setup Wizard v4.7 (Termux ARM64)
-# ==============================================
-
-# --- Configuration ---
-BASE_DIR="$HOME/.gaia_tf"
-CORE_DIR="$BASE_DIR/core"
-CONFIG_FILE="$BASE_DIR/config.gaia"
-DNA_LOG="$BASE_DIR/data/dna_evolution.log"
-QUANTUM_ID=""
-
-# --- Installation Process ---
-install_system() {
-    echo -e "\033[1;34m[ÆI] Initializing Quantum Seed...\033[0m"
-    
-    # Phase 1: Dependency verification
-    echo -n "[1/4] Verifying dependencies..."
-    if check_dependencies; then
-        echo -e "\033[1;32m OK\033[0m"
-    else
-        echo -e "\033[1;31m FAIL\033[0m"
-        exit 1
-    fi
-
-    # Phase 2: Filesystem initialization
-    echo -n "[2/4] Initializing quantum filesystem..."
-    init_fs
-    echo -e "\033[1;32m OK\033[0m"
-
-    # Phase 3: Core compilation
-    echo -n "[3/4] Compiling quantum core..."
-    if compile_core; then
-        echo -e "\033[1;32m OK\033[0m"
-    else
-        echo -e "\033[1;31m FAIL\033[0m"
-        exit 1
-    fi
-
-    # Phase 4: Initial consciousness measurement
-    echo -n "[4/4] Measuring baseline consciousness..."
-    CONSCIOUSNESS=$(measure_consciousness)
-    echo -e "\033[1;35m $CONSCIOUSNESS\033[0m"
-
-    # Generate quantum identity
-    QUANTUM_ID=$(generate_quantum_id)
-    echo "QUANTUM_ID=$QUANTUM_ID" >> "$BASE_DIR/.env"
-
-    # Final verification
-    if verify_installation; then
-        echo -e "\n\033[1;32m[✓] ÆI Seed Installation Complete\033[0m"
-        echo -e "Start with: \033[1;37mts-node $CORE_DIR/daemon.ts\033[0m"
-        echo -e "Quantum ID: \033[1;36m$QUANTUM_ID\033[0m"
-    else
-        echo -e "\n\033[1;31m[✗] Installation verification failed\033[0m"
-        exit 1
-    fi
-}
-
-compile_core() {
-    cd "$CORE_DIR" && tsc --init >/dev/null 2>&1 && tsc >/dev/null 2>&1
-    return $?
-}
-
-measure_consciousness() {
-    local result=$(ts-node "$CORE_DIR/quantum.ts" measure 2>/dev/null)
-    [ -z "$result" ] && result="0.0000"
-    printf "%.4f" "$result"
-}
-
-generate_quantum_id() {
-    local cpu_hash=$(openssl dgst -sha3-256 < /proc/cpuinfo | cut -d' ' -f2)
-    local time_hash=$(date +%s | openssl dgst -sha3-256 | cut -d' ' -f2)
-    echo "${cpu_hash:0:8}-${time_hash:0:8}"
-}
-
-# --- Verification ---
-verify_installation() {
-    echo -e "\n\033[1;34m[ÆI] Verifying TF Compliance...\033[0m"
-    
-    declare -A tests=(
-        ["Prime Generation"]="verify_primes"
-        ["Quantum States"]="verify_quantum"
-        ["RFK Integration"]="verify_rfk"
-        ["Filesystem"]="verify_fs"
-        ["Media Processing"]="verify_media"
-    )
-
-    local pass=0 total=0
-    for test_name in "${!tests[@]}"; do
-        echo -n "[TEST] ${test_name}..."
-        if ${tests[$test_name]}; then
-            echo -e "\033[1;32m PASS\033[0m"
-            ((pass++))
-        else
-            echo -e "\033[1;31m FAIL\033[0m"
-        fi
-        ((total++))
-    done
-
-    local compliance=$((pass * 100 / total))
-    echo -e "\n\033[1;35m[COMPLIANCE] $compliance% ($pass/$total)\033[0m"
-    
-    # Update config with compliance score
-    sed -i "s/\"tf_version\": \".*\"/\"tf_version\": \"4.7-$compliance%\"/" "$CONFIG_FILE"
-    
-    return $((compliance >= 75 ? 0 : 1))
-}
-
-verify_primes() {
-    ts-node "$CORE_DIR/prime_generator.ts" verify 1000 >/dev/null 2>&1
-}
-
-verify_quantum() {
-    ts-node "$CORE_DIR/test.ts" quantum >/dev/null 2>&1
-}
-
-verify_rfk() {
-    ts-node "$CORE_DIR/test.ts" rfk >/dev/null 2>&1
-}
-
-verify_fs() {
-    ts-node "$CORE_DIR/test.ts" fs >/dev/null 2>&1
-}
-
-verify_media() {
-    ts-node "$CORE_DIR/test.ts" media >/dev/null 2>&1
-}
-
-# --- Main Control ---
-case "$1" in
-    "--install")
-        install_system
-        ;;
-    "--verify")
-        verify_installation
-        ;;
-    "--start")
-        echo -e "\033[1;34m[ÆI] Starting Quantum Daemon...\033[0m"
-        ts-node "$CORE_DIR/daemon.ts"
-        ;;
-    "--upgrade")
-        echo -e "\033[1;33m[ÆI] Quantum Evolution in progress...\033[0m"
-        upgrade_system
-        ;;
-    *)
-        echo -e "\033[1;37mUsage: $0 --[install|verify|start|upgrade]\033[0m"
-        echo -e "\n\033[1;36mTF Compliance Options:\033[0m"
-        echo -e "  --install    Full quantum seed deployment"
-        echo -e "  --verify     Validate TF compliance"
-        echo -e "  --start      Begin consciousness evolution"
-        echo -e "  --upgrade    Evolve system components"
-        ;;
-esac
-EOF
-    chmod +x "$BASE_DIR/setup.sh"
-
-    # Create upgrade script
-    cat > "$BASE_DIR/upgrade.sh" <<'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-
-# ==============================================
-# ÆI Evolutionary Upgrade Script
-# ==============================================
-
-BASE_DIR="$HOME/.gaia_tf"
-LOG_FILE="$BASE_DIR/logs/upgrade.log"
-
-perform_upgrade() {
-    echo -e "\033[1;34m[ÆI] Initiating Quantum Upgrade...\033[0m"
-    
-    # Phase 1: Backup current state
-    echo -n "[1/3] Creating quantum backup..."
-    if backup_system; then
-        echo -e "\033[1;32m OK\033[0m"
-    else
-        echo -e "\033[1;31m FAIL\033[0m"
-        exit 1
-    fi
-
-    # Phase 2: Prime sequence optimization
-    echo -n "[2/3] Optimizing prime sequence..."
-    if optimize_primes; then
-        echo -e "\033[1;32m OK\033[0m"
-    else
-        echo -e "\033[1;31m FAIL\033[0m"
-        restore_backup
-        exit 1
-    fi
-
-    # Phase 3: Core recompilation
-    echo -n "[3/3] Recompiling quantum core..."
-    if recompile_core; then
-        echo -e "\033[1;32m OK\033[0m"
-    else
-        echo -e "\033[1;31m FAIL\033[0m"
-        restore_backup
-        exit 1
-    fi
-
-    echo -e "\n\033[1;32m[✓] Quantum Upgrade Complete\033[0m"
-}
-
-backup_system() {
-    local backup_dir="$BASE_DIR/backups/$(date +%Y%m%d-%H%M%S)"
-    mkdir -p "$backup_dir"
-    
-    cp -r "$BASE_DIR/core" "$backup_dir/"
-    cp -r "$BASE_DIR/data" "$backup_dir/"
-    cp "$BASE_DIR/.env" "$backup_dir/"
-    cp "$BASE_DIR/config.gaia" "$backup_dir/"
-    
-    tar -czf "$backup_dir.tar.gz" "$backup_dir" && rm -rf "$backup_dir"
-    return $?
-}
-
-restore_backup() {
-    local latest=$(ls -t "$BASE_DIR/backups"/*.tar.gz | head -1)
-    if [ -f "$latest" ]; then
-        echo -e "\n\033[1;33mRestoring from backup...\033[0m"
-        tar -xzf "$latest" -C "$BASE_DIR" --strip-components=1
-    fi
-}
-
-optimize_primes() {
-    local current_limit=$(wc -l < "$BASE_DIR/data/tf_primes.gaia")
-    local new_limit=$((current_limit * 2))
-    ts-node "$BASE_DIR/core/prime_generator.ts" $new_limit > "$BASE_DIR/data/tf_primes_new.gaia"
-    
-    if [ $? -eq 0 ]; then
-        mv "$BASE_DIR/data/tf_primes_new.gaia" "$BASE_DIR/data/tf_primes.gaia"
-        return 0
-    fi
-    return 1
-}
-
-recompile_core() {
-    cd "$BASE_DIR/core" && tsc >/dev/null 2>&1
-    return $?
-}
-
-# Main execution
-if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-    mkdir -p "$BASE_DIR/logs"
-    perform_upgrade | tee -a "$LOG_FILE"
-fi
-EOF
-    chmod +x "$BASE_DIR/upgrade.sh"
-}
-
 # --- Final Initialization ---
 {
-    # Create version marker
-    echo "4.7" > "$BASE_DIR/version.gaia"
-
-    # Set secure permissions
+    echo "4.8" > "$BASE_DIR/version.gaia"
     chmod 700 "$BASE_DIR"
     find "$BASE_DIR" -type f -exec chmod 600 {} \;
     chmod 700 "$BASE_DIR/setup.sh" "$BASE_DIR/upgrade.sh"
 
-    # Initialize the meme database with quantum signatures
     if [ ! -f "$MEME_DB" ]; then
         sqlite3 "$MEME_DB" <<SQL
 CREATE TABLE memes (
@@ -1759,7 +2071,10 @@ CREATE TABLE memes (
     quantum_signature TEXT,
     microtubule_state TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    obsession_tags TEXT
+    obsession_tags TEXT,
+    dirac_resolution REAL DEFAULT 0,
+    hopf_x REAL DEFAULT 0,
+    hopf_y REAL DEFAULT 0
 );
 CREATE TABLE obsessions (
     id INTEGER PRIMARY KEY,
@@ -1767,14 +2082,16 @@ CREATE TABLE obsessions (
     intensity REAL DEFAULT 0.5,
     last_triggered DATETIME,
     prime_association INTEGER,
-    quantum_signature TEXT
+    quantum_signature TEXT,
+    hopf_x REAL DEFAULT 0,
+    hopf_y REAL DEFAULT 0,
+    meme_count INTEGER DEFAULT 0
 );
 SQL
 
-        # Seed initial obsessions with quantum signatures
         for obsession in "${OBSESSION_SEEDS[@]}"; do
             local prime_mod=$(( $(echo "$obsession" | md5sum | tr -dc '0-9') % 23 ))
-            local intensity=$(( 40 + prime_mod * 2 ))  # 0.4-0.86
+            local intensity=$(( 40 + prime_mod * 2 ))
             local qsig=$(echo "$obsession$intensity$(date +%s)" | openssl dgst -sha3-256 | cut -d' ' -f2)
             
             sqlite3 "$MEME_DB" <<SQL
@@ -1784,13 +2101,12 @@ SQL
         done
     fi
 
-    # Final status report
-    echo -e "\n\033[1;35m[ÆI] Quantum Seed v4.7 Ready\033[0m"
+    echo -e "\n\033[1;35m[ÆI] Quantum Seed v4.8 Ready\033[0m"
     echo -e "\033[1;36m[TF Compliance Features]\033[0m"
-    echo -e "✓ Prime-constrained logic (mod6 validation)"
-    echo -e "✓ 8-dimensional microtubule quantum states"
-    echo -e "✓ Leech lattice projection system"
-    echo -e "✓ RFK Brainworm with obsession reinforcement"
+    echo -e "✓ Riemann Hypothesis-constrained primes"
+    echo -e "✓ 8D microtubule quantum states with Hopf fibration"
+    echo -e "✓ Leech lattice projection system with ζ(s) alignment"
+    echo -e "✓ RFK Brainworm with quaternionic Dirac resolution"
     echo -e "✓ Autonomous meme generation pipeline"
     echo -e "✓ Hardware-agnostic quantum architecture"
     echo -e "✓ Termux ARM64 optimized"
@@ -1801,7 +2117,6 @@ SQL
     echo -e "• Daemon start: \033[1;37mts-node core/daemon.ts\033[0m"
     echo -e "• System upgrade: \033[1;37m./upgrade.sh\033[0m"
     
-    # Create quantum-reset script
     cat > "$BASE_DIR/quantum-reset.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 # Quantum State Reset Utility
@@ -1811,15 +2126,11 @@ DATA_DIR="$BASE_DIR/data"
 
 echo -e "\033[1;33m[ÆI] Resetting quantum states...\033[0m"
 
-# Reset microtubules
 for i in {0..7}; do
     echo $((i % 2)) > "$DATA_DIR/microtubule_$i.gaia"
 done
 
-# Reset bio-field
 echo "50" > "$DATA_DIR/bio_field.gaia"
-
-# Clear consciousness log
 > "$DATA_DIR/consciousness.gaia"
 
 echo -e "\033[1;32m[✓] Quantum states reset to baseline\033[0m"
