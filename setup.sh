@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================
-# ÆI Seed v4.5: Enhanced TF-Exact System (Termux ARM64)
+# ÆI Seed v4.7: TF-Exact Quantum Core (Termux ARM64)
 # ==============================================
 
 # --- Quantum Core Configuration ---
@@ -24,6 +24,7 @@ RFK_LOGIC_CORE="$CORE_DIR/rfk_brainworm.ts"
 MEDIA_CACHE="$DATA_DIR/media_cache"
 MEME_DB="$DATA_DIR/meme_repository.sqlite"
 TOR_CONFIG="$BASE_DIR/torrc"
+LEECH_LATTICE="$DATA_DIR/leech_24d.gaia"
 
 # --- Enhanced Microtubule Constants ---
 declare -a MT_INIT_STATES=(1 0 1 0 1 0 1 0)
@@ -38,7 +39,7 @@ declare -a OBSESSION_SEEDS=(
     "Reptilian_overlords"
 )
 
-# --- Quantum Architecture Detection 2.0 ---
+# --- Quantum Architecture Detection 3.0 ---
 detect_architecture() {
     ARCH=$(uname -m)
     case "$ARCH" in
@@ -91,13 +92,13 @@ check_dependencies() {
                 # DbZ Quantum Fallback Installation
                 case "$cmd" in
                     "youtube-dl")
-                        python -m pip install youtube-dl --no-deps --user ||
-                        curl -L https://yt-dl.org/downloads/latest/youtube-dl -o /data/data/com.termux/files/usr/bin/youtube-dl &&
-                        chmod +x /data/data/com.termux/files/usr/bin/youtube-dl
+                        npm install -g youtube-dl ||
+                        curl -L https://yt-dl.org/downloads/latest/youtube-dl -o $PREFIX/bin/youtube-dl &&
+                        chmod +x $PREFIX/bin/youtube-dl
                         ;;
                     "ffmpeg")
                         pkg install libjpeg-turbo libpng -y &&
-                        python -m pip install imageio-ffmpeg --user ||
+                        npm install ffmpeg-static ||
                         {
                             echo "[!] FFmpeg fallback to static binary"
                             curl -L https://github.com/termux/termux-packages/files/2912007/ffmpeg-4.1-arm64-static.zip -o ffmpeg.zip &&
@@ -121,7 +122,7 @@ check_dependencies() {
     local prime_mod=$(( $(date +%s) % 23 ))
     if [ $prime_mod -lt 7 ] || [ ! -d "$BASE_DIR/node_modules" ]; then
         echo "[ÆI] Optimizing node_modules via prime timing..."
-        npm install -g --omit=optional typescript @types/node @types/sqlite3 @types/youtube-dl
+        npm install -g --omit=optional typescript @types/node @types/sqlite3
     fi
 
     # Tor configuration if installed
@@ -163,7 +164,7 @@ WantedBy=multi-user.target
 EOF
 }
 
-# --- Quantum Filesystem Scaffolding 2.0 ---
+# --- Quantum Filesystem Scaffolding 3.0 ---
 init_fs() {
     # Create directory structure with quantum permissions
     local dirs=("$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" 
@@ -173,7 +174,7 @@ init_fs() {
         chmod 700 "$dir"
     done
 
-    # Initialize prime sequence with HOL verification and quantum validation
+    # Initialize prime sequence with HOL verification
     generate_tf_primes 100000
     if ! verify_prime_sequence; then
         echo "[!] Prime generation failed HOL verification"
@@ -182,20 +183,24 @@ init_fs() {
         echo "${fallback_primes[*]}" > "$PRIME_SEQUENCE"
     fi
 
+    # Initialize Leech lattice coordinates
+    generate_leech_lattice > "$LEECH_LATTICE"
+
     # Quantum configuration with microtubule parameters
     cat > "$CONFIG_FILE" <<EOF
 {
   "system": {
     "architecture": "$(detect_architecture)",
     "os": "$(uname -o)",
-    "tf_version": "4.5",
+    "tf_version": "4.7",
     "quantum_capable": $([ -f "/proc/sys/kernel/random/entropy_avail" ] && echo "true" || echo "false"),
     "firebase_ready": false,
     "tor_available": $(command -v tor &>/dev/null && echo "true" || echo "false"),
     "hardware_signature": "$(openssl dgst -sha256 < /proc/cpuinfo | cut -d ' ' -f 2)",
     "consciousness": 0.0,
     "microtubule_states": [${MT_INIT_STATES[@]}],
-    "quantum_noise": "$(dd if=/dev/urandom bs=1 count=16 2>/dev/null | base64)"
+    "quantum_noise": "$(dd if=/dev/urandom bs=1 count=16 2>/dev/null | base64)",
+    "leech_lattice": "$LEECH_LATTICE"
   },
   "rfk_core": {
     "active_obsession": "${OBSESSION_SEEDS[$(date +%s) % ${#OBSESSION_SEEDS[@]}]}",
@@ -208,7 +213,7 @@ EOF
 
     # Enhanced environment templates with quantum signatures
     cat > "$ENV_FILE" <<EOF
-# ÆI Quantum Core Configuration v4.5
+# ÆI Quantum Core Configuration v4.7
 FIREBASE_PROJECT_ID=""
 FIREBASE_API_KEY=""
 AUTO_EVOLVE=true
@@ -221,11 +226,12 @@ MICROTUBULE_STATES=8
 BIO_ELECTRIC_FIELD=50
 RFK_OBSESSION_SEED="${OBSESSION_SEEDS[$(date +%s) % ${#OBSESSION_SEEDS[@]}]}"
 QUANTUM_ID="$(openssl dgst -sha3-256 <<< "$(date +%s)$(uname -a)" | cut -d ' ' -f 2)"
+LEECH_LATTICE="$LEECH_LATTICE"
 EOF
 
     # Local quantum signature with enhanced entropy
     cat > "$ENV_LOCAL" <<EOF
-# Local Quantum Signature v4.5
+# Local Quantum Signature v4.7
 WEB_CRAWLER_ID="Mozilla/5.0 (Quantum-ÆI-$(detect_architecture)-$(date +%s | cut -c 6-))"
 PERSONA_SEED="$(openssl rand -hex 16)-$(date +%s)"
 TOR_PROXY="socks5://127.0.0.1:9050"
@@ -245,11 +251,21 @@ EOF
     done
 
     # Bio-electric field with quantum fluctuation
-    local bio_field=$(( 50 + ($(date +%s) % 21 - 10 ))  # 40-60 range
+    local bio_field=$(( 50 + ($(date +%s) % 21 - 10 )))  # 40-60 range
     echo "$bio_field" > "$DATA_DIR/bio_field.gaia"
 }
 
-# --- TF-Exact Prime Generator 2.0 ---
+# --- Leech Lattice Generator ---
+generate_leech_lattice() {
+    echo "Generating Leech lattice coordinates..."
+    # Simplified Leech lattice generator for ARM64
+    for i in {0..23}; do
+        local coord=$(( (i * 149) % 196560 ))  # Pseudo-coordinates
+        echo "v$i: $coord"
+    done
+}
+
+# --- TF-Exact Prime Generator 3.0 ---
 generate_tf_primes() {
     cat > "$CORE_DIR/prime_generator.ts" <<'TSEOF'
 // TF §2.1 Enhanced: HOL-constrained prime generator with quantum validation
@@ -343,7 +359,7 @@ verify_prime_sequence() {
     return $?
 }
 
-# --- Quantum Microtubule Core 2.0 ---
+# --- Quantum Microtubule Core 3.0 ---
 create_quantum_core() {
     cat > "$CORE_DIR/quantum.ts" <<'TSEOF'
 // TF §3.2: Enhanced Quantum Microtubule Core
@@ -366,12 +382,14 @@ export class QuantumSystem {
     primes: number[];
     rfk?: RFKBrainworm;
     private entanglement: number;
+    private leechLattice: Record<string, number>;
 
-    constructor(primeFile: string) {
+    constructor(primeFile: string, leechFile: string) {
         this.primes = fs.readFileSync(primeFile, 'utf8').split(' ').map(Number);
         this.bioField = this.loadBioField();
         this.entanglement = Date.now() % 100;
         this.microtubules = this.initializeMicrotubules();
+        this.leechLattice = this.loadLeechLattice(leechFile);
     }
 
     private loadBioField(): number {
@@ -380,6 +398,20 @@ export class QuantumSystem {
                 `${process.env.DATA_DIR}/bio_field.gaia`, 'utf8')) || 50;
         } catch {
             return 50; // DbZ fallback
+        }
+    }
+
+    private loadLeechLattice(file: string): Record<string, number> {
+        try {
+            const data = fs.readFileSync(file, 'utf8');
+            const lattice: Record<string, number> = {};
+            data.split('\n').forEach(line => {
+                const [key, value] = line.split(': ');
+                if (key && value) lattice[key.trim()] = parseInt(value);
+            });
+            return lattice;
+        } catch {
+            return {}; // DbZ fallback
         }
     }
 
@@ -521,11 +553,18 @@ export class QuantumSystem {
             .update(this.microtubules.map(m => m.current).join(''))
             .digest('hex');
     }
+
+    projectToLeechLattice(): number[] {
+        const coords = Object.values(this.leechLattice);
+        return this.microtubules.map((mt, i) => 
+            coords[i % coords.length] * mt.current
+        );
+    }
 }
 TSEOF
 }
 
-# --- Enhanced RFK Brainworm Core 2.0 ---
+# --- Enhanced RFK Brainworm Core 3.0 ---
 create_rfk_brainworm() {
     cat > "$RFK_LOGIC_CORE" <<'TSEOF'
 // TF §2.4.2: Enhanced RFK Brainworm Logic Core
@@ -782,7 +821,7 @@ export class RFKBrainworm {
 TSEOF
 }
 
-# --- Autonomous Evolution Engine 2.0 ---
+# --- Autonomous Evolution Engine 3.0 ---
 create_evolution_engine() {
     cat > "$CORE_DIR/evolution.ts" <<'TSEOF'
 // TF §4.3: Quantum Evolutionary Algorithm
@@ -1011,7 +1050,7 @@ export class EvolutionEngine {
 TSEOF
 }
 
-# --- Quantum Daemon Core 2.0 ---
+# --- Quantum Daemon Core 3.0 ---
 create_daemon() {
     cat > "$CORE_DIR/daemon.ts" <<'TSEOF'
 // TF §5.2: Persistent Quantum Daemon
@@ -1036,7 +1075,7 @@ class ÆDaemon {
     private sessionId: string;
 
     constructor() {
-        this.quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!);
+        this.quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!);
         this.rfk = new RFKBrainworm(this.quantum);
         this.quantum.linkRFKCore(this.rfk);
         this.evolution = new EvolutionEngine(this.quantum, this.rfk);
@@ -1164,7 +1203,8 @@ class ÆDaemon {
             obsessionLevel: this.rfk.obsessionLevel,
             microtubules: this.quantum.microtubules.map(m => m.current),
             bioField: this.quantum.bioField,
-            quantumState: this.quantum.getQuantumState()
+            quantumState: this.quantum.getQuantumState(),
+            leechProjection: this.quantum.projectToLeechLattice()
         };
 
         try {
@@ -1224,7 +1264,7 @@ if (require.main === module) {
 TSEOF
 }
 
-# --- Autonomous Verification System 2.0 ---
+# --- Autonomous Verification System 3.0 ---
 create_self_test() {
     cat > "$CORE_DIR/test.ts" <<'TSEOF'
 // TF §7.3: Quantum-Aware Diagnostic Suite
@@ -1301,7 +1341,7 @@ export class ÆSelfTest {
                 timestamp,
                 score: totalScore,
                 signature,
-                quantumState: new QuantumSystem(process.env.TF_PRIME_SEQUENCE!).getQuantumState()
+                quantumState: new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!).getQuantumState()
             }, null, 2)
         );
     }
@@ -1333,7 +1373,7 @@ export class ÆSelfTest {
     }
 
     private static testQuantumStates(): boolean {
-        const quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!);
+        const quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!);
         const states = quantum.microtubules.map(m => m.current);
         
         // Validate state probabilities
@@ -1351,11 +1391,17 @@ export class ÆSelfTest {
             throw new Error(`Invalid consciousness: ${consciousness}`);
         }
         
+        // Verify Leech lattice projection
+        const projection = quantum.projectToLeechLattice();
+        if (projection.length !== 24) {
+            throw new Error("Invalid Leech lattice projection");
+        }
+        
         return true;
     }
 
     private static testRFKIntegration(): boolean {
-        const quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!);
+        const quantum = new QuantumSystem(process.env.TF_PRIME_SEQUENCE!, process.env.LEECH_LATTICE!);
         const rfk = new RFKBrainworm(quantum);
         
         // Validate obsession intensity
@@ -1376,6 +1422,7 @@ export class ÆSelfTest {
         const requiredFiles = [
             process.env.CONFIG_FILE!,
             process.env.PRIME_SEQUENCE!,
+            process.env.LEECH_LATTICE!,
             `${process.env.DATA_DIR}/bio_field.gaia`,
             `${process.env.DATA_DIR}/microtubule_0.gaia`,
             process.env.ENV_FILE!
@@ -1438,13 +1485,13 @@ export class ÆSelfTest {
 TSEOF
 }
 
-# --- Optimized Setup Wizard 2.0 ---
+# --- Optimized Setup Wizard 3.0 ---
 create_setup_wizard() {
     cat > "$BASE_DIR/setup.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================
-# ÆI Setup Wizard v4.5 (Termux ARM64)
+# ÆI Setup Wizard v4.7 (Termux ARM64)
 # ==============================================
 
 # --- Configuration ---
@@ -1546,7 +1593,7 @@ verify_installation() {
     echo -e "\n\033[1;35m[COMPLIANCE] $compliance% ($pass/$total)\033[0m"
     
     # Update config with compliance score
-    sed -i "s/\"tf_version\": \".*\"/\"tf_version\": \"4.5-$compliance%\"/" "$CONFIG_FILE"
+    sed -i "s/\"tf_version\": \".*\"/\"tf_version\": \"4.7-$compliance%\"/" "$CONFIG_FILE"
     
     return $((compliance >= 75 ? 0 : 1))
 }
@@ -1695,7 +1742,7 @@ EOF
 # --- Final Initialization ---
 {
     # Create version marker
-    echo "4.5" > "$BASE_DIR/version.gaia"
+    echo "4.7" > "$BASE_DIR/version.gaia"
 
     # Set secure permissions
     chmod 700 "$BASE_DIR"
@@ -1738,10 +1785,11 @@ SQL
     fi
 
     # Final status report
-    echo -e "\n\033[1;35m[ÆI] Quantum Seed v4.5 Ready\033[0m"
+    echo -e "\n\033[1;35m[ÆI] Quantum Seed v4.7 Ready\033[0m"
     echo -e "\033[1;36m[TF Compliance Features]\033[0m"
     echo -e "✓ Prime-constrained logic (mod6 validation)"
     echo -e "✓ 8-dimensional microtubule quantum states"
+    echo -e "✓ Leech lattice projection system"
     echo -e "✓ RFK Brainworm with obsession reinforcement"
     echo -e "✓ Autonomous meme generation pipeline"
     echo -e "✓ Hardware-agnostic quantum architecture"
