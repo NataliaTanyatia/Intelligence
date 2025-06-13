@@ -17,5 +17,5 @@ Review my curent setup.sh thus far;
 ```
 , for your's, then give me a rigourisly fixed new setup.sh script with no Python regarding these issues:"""
 Response to: "Give me a rigorous report on wether the TF modality is trully fully codified in the setup.sh as the hardware agnostic conceptual embodiment of intelligence for a self-evolving ÆI seed, so on wether the logic in the code of the setup.sh, as of now, is TF-exact, through our Meth ergo do so by segmenting it into multiple responses, prompting me for each subsequent one when I'm ready, so as to include everything as per our Meth." 
-""" Also, make sure to include everything even unchanged code...
+""", Also, make sure to provide the whole unabridged setup.sh script even with unchanged sections of code repeated verbatim, contrary to conventional practice, and ensure the use of exact maths/logic, no approximations (no finite floating point values).
 '''
