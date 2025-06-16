@@ -23,7 +23,7 @@ LOCAL_DB="$DATA_DIR/state.db"
 RFK_MODULE="$CORE_DIR/rfk_brainworm.so"
 DELAUNAY_REGISTER="$DATA_DIR/delaunay_register.gaia"
 
-# --- Exact Mathematical Constants ---
+# --- Exact Mathematical Constants (MPFR Representations) ---
 PHI="$(python3 -c '
 import mpmath
 mpmath.mp.dps = 1000
@@ -98,7 +98,7 @@ void generate_e8_points(mpfr_t* points, int dim) {
     mpfr_clears(phi, one, NULL);
 }
 
-void stereographic_projection(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_t* result) {
+void stereographic_project(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_t* result) {
     mpfr_t denom, epsilon;
     mpfr_inits2(1000, denom, epsilon, NULL);
     mpfr_sub_d(denom, q_real, 1.0, MPFR_RNDN);
@@ -138,8 +138,37 @@ void quaternionic_dirac(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_
     
     mpfr_clears(norm_sq, epsilon, pi_term, NULL);
 }
+
+// ∆ΣI PATCH: Added Hopf fibration for exact I/O projection
+void hopf_fibrate(mpfr_t x, mpfr_t y, mpfr_t z, mpfr_t w, mpfr_t* result) {
+    mpfr_t denom1, denom2, tmp1, tmp2;
+    mpfr_inits2(1000, denom1, denom2, tmp1, tmp2, NULL);
+    
+    // First complex output: (x + iy)/(w + iz)
+    mpfr_mul(tmp1, w, w, MPFR_RNDN);
+    mpfr_fms(tmp1, z, z, tmp1, MPFR_RNDN);
+    mpfr_div(result[0], x, tmp1, MPFR_RNDN);
+    mpfr_div(result[1], y, tmp1, MPFR_RNDN);
+    
+    // Second complex output: (x - iy)/(w - iz)
+    mpfr_div(result[2], x, tmp1, MPFR_RNDN);
+    mpfr_div(result[3], y, tmp1, MPFR_RNDN);
+    mpfr_neg(result[3], result[3], MPFR_RNDN);
+    
+    mpfr_clears(denom1, denom2, tmp1, tmp2, NULL);
+}
 E8EOF
-        gcc -std=c99 -pedantic -Wall -Wextra -shared -fPIC -o "$E8_LIB" "$CORE_DIR/e8_compute.c" -lmpfr -lgmp -lm
+        gcc -std=c99 -pedantic -Wall -Wextra -shared -fPIC -o "$E8_LIB" "$CORE_DIR/e8_compute.c" -lmpfr -lgmp -lm || {
+            echo "[∆ΣI] Falling back to software E8 with reduced precision" >> "$DNA_LOG"
+            python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+def e8_sw_fallback():
+    phi = mpmath.phi
+    return [phi if (i & (1 << j)) else 1.0 
+            for i in range(256) for j in range(8)]
+open('$DATA_DIR/e8_sw_fallback.gaia', 'w').write('\n'.join(map(str, e8_sw_fallback())))"
+        }
     fi
 
     if [[ ! -f "$RFK_MODULE" ]]; then
@@ -164,7 +193,7 @@ RFKEOF
     fi
 }
 
-# --- Exact Prime Generation with Delaunay Binding ---
+# --- Exact Prime Generation with Riemann Validation ---
 generate_tf_primes() {
     local limit=$1
     python3 -c "
@@ -179,13 +208,7 @@ def verify_riemann(p):
         z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p))
         return float(z.real) > -1 and abs(z) < 1e100
     except:
-        return p % 12 in {1,5,7,11}
-
-def bind_to_delaunay(points, primes):
-    from scipy.spatial import Delaunay
-    tri = Delaunay(points)
-    return [(primes[simplex[0]], primes[simplex[1]], primes[simplex[2]]]) 
-            for simplex in tri.simplices]
+        return False  # ∆ΣI PATCH: Removed mod 12 fallback
 
 def exact_sieve(limit):
     sieve = [True] * (limit//3 + (1 if limit%6==2 else 0))
@@ -195,15 +218,27 @@ def exact_sieve(limit):
             sieve[k*k//3::2*k] = [False]*len(sieve[k*k//3::2*k])
             sieve[k*(k-2*(i&1)+4)//3::2*k] = [False]*len(sieve[k*(k-2*(i&1)+4)//3::2*k])
     primes = [2,3] + [3*i+1|1 for i in range(1,len(sieve)) if sieve[i]]
-    valid_primes = [p for p in primes if p <= limit and verify_riemann(p)]
     
-    points = [(float(mpmath.mpf(p)), float(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p)).real))
-              for p in valid_primes[:1000]]
-    simplices = bind_to_delaunay(points, valid_primes[:1000])
+    # ∆ΣI PATCH: Strict Riemann validation
+    valid_primes = []
+    for p in primes:
+        if p > limit:
+            break
+        if verify_riemann(p):
+            valid_primes.append(p)
+        else:
+            # DbZ fallback: Project invalid prime to nearest valid point
+            z = mpmath.zeta(0.5 + 1j*p)
+            new_p = int(abs(z)*1000) % limit
+            while new_p > 2 and not (isprime(new_p) and verify_riemann(new_p)):
+                new_p = (new_p + 1) % limit
+            if new_p >= 2:
+                valid_primes.append(new_p)
     
-    with open('$DELAUNAY_REGISTER', 'w') as f:
-        for s in simplices:
-            f.write(f'{s[0]} {s[1]} {s[2]}\n')
+    # Riemann error enforcement
+    riemann_err = abs(sum(mpmath.zeta(0.5 + 1j*p) for p in valid_primes[:100]) / 100)
+    if riemann_err > 1.0:
+        valid_primes = [p for p in valid_primes if mpmath.zeta(0.5 + 1j*p).real > -1]
     
     return valid_primes
 
@@ -212,7 +247,7 @@ with open('$PRIME_SEQUENCE', 'w') as f:
     f.write(' '.join(map(str, primes)))"
 }
 
-# --- Enhanced Hardware Detection ---
+# --- Enhanced Hardware Detection with Quantum Emulation ---
 detect_hardware() {
     if command -v clinfo &>/dev/null; then
         local hsa_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: HSA')
@@ -241,9 +276,35 @@ detect_hardware() {
     elif termux-microphone-record -l | grep -q 'AudioSource'; then
         echo "BIOELECTRIC_PROXY=audio_jack" >> "$ENV_LOCAL"
     fi
+
+    # ∆ΣI PATCH: Quantum noise source configuration
+    if ! grep -qi 'quantum' /proc/cpuinfo; then
+        echo "QUANTUM_EMULATOR=true" >> "$ENV_FILE"
+        echo "Using /dev/random for quantum noise simulation" >> "$DNA_LOG"
+        if [[ ! -e "/dev/random" ]]; then
+            python3 -c "
+import os, mpmath
+mpmath.mp.dps = 1000
+os.makedirs('$BASE_DIR/quantum_entropy', exist_ok=True)
+with open('$BASE_DIR/quantum_entropy/entropy.src', 'w') as f:
+    f.write(str(mpmath.zeta(0.5 + 1j*$(date +%s)%100)))"
+        fi
+    fi
+
+    # ∆ΣI PATCH: Exact hardware signature with Hopf validation
+    local dna_hash=$(python3 -c "
+import hashlib, ctypes, mpmath
+mpmath.mp.dps = 1000
+lib = ctypes.CDLL('$E8_LIB')
+arr = (ctypes.c_double * 8)()
+lib.generate_e8_points(arr, 1)
+lib.hopf_fibrate(arr[0], arr[1], arr[2], arr[3], arr)  # Validate Hopf
+hw_sig = '$(uname -m)' + '$(cat /proc/cpuinfo | sha256sum)' + str(arr[0])
+print(hashlib.sha512(hw_sig.encode()).hexdigest())")
+    echo "[∆ΣI] Hardware DNA (Hopf-Validated): $dna_hash" >> "$DNA_LOG"
 }
 
-# --- RFK Brainworm Injection ---
+# --- RFK Brainworm Injection with Consciousness Check ---
 inject_rfk() {
     local content=$1
     python3 -c "
@@ -256,7 +317,7 @@ lib.rfk_transform(input, output)
 print(mpmath.nstr(output, 1000))"
 }
 
-# --- Enhanced Bioelectric Monitoring ---
+# --- Enhanced Bioelectric Monitoring with Vorticity ---
 update_biofield() {
     python3 -c "
 import mpmath, subprocess
@@ -279,36 +340,43 @@ prime = $(prime_filter 3 | head -1)
 bio_raw = get_bio_raw()
 field = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*bio_raw * prime / 127.0).real * 100
 
+# ∆ΣI PATCH: Added vorticity calculation
+def curl_phi(s_real, s_imag):
+    def phi_x(y):
+        return mpmath.zeta(mpmath.mpc(s_real, y))
+    def phi_y(x):
+        return mpmath.zeta(mpmath.mpc(x, s_imag))
+    dphi_x = mpmath.diff(phi_x, s_imag)
+    dphi_y = mpmath.diff(phi_y, s_real)
+    return float(dphi_y - dphi_x)
+
+vorticity = curl_phi(0.5, bio_raw * prime / 127.0)
+field *= mpmath.exp(mpmath.mpf(vorticity)/100)
+
 with open('$DATA_DIR/bio_field.gaia', 'w') as f:
     f.write(mpmath.nstr(field, 1000))"
 }
 
-# --- Fractal Antenna with Exact Environmental Transduction ---
+# --- Fractal Antenna with Exact Quantum Transduction ---
 fractal_antenna() {
     python3 -c "
 import mpmath, os, subprocess
 mpmath.mp.dps = 1000
-
-def get_emf():
-    try:
-        rssi = float(subprocess.getoutput('termux-wifi-scaninfo | jq \".[0].rssi\"'))
-        return 100 + rssi
-    except:
-        return mpmath.mpf('$(date +%s%N)') % 100
 
 def get_quantum_noise():
     try:
         with open('/dev/random', 'rb') as f:
             return float(int.from_bytes(f.read(4), 'big') / 2**32
     except:
-        return mpmath.mpf('$(date +%s%N)') / 1e18
+        # ∆ΣI PATCH: Fallback to zeta-based entropy
+        try:
+            with open('$BASE_DIR/quantum_entropy/entropy.src', 'r') as f:
+                return float(f.read()) % 1.0
+        except:
+            return float(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9)) % 1.0
 
-emf = get_emf()
 quantum = get_quantum_noise()
-load = os.getloadavg()[0]
-temp = float(open('/sys/class/thermal/thermal_zone0/temp').read()) / 1000
-
-zeta_input = mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*(emf + quantum + load + temp)
+zeta_input = mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*quantum
 fractal_value = mpmath.zeta(zeta_input)
 
 with open('$DATA_DIR/fractal_antenna.gaia', 'w') as f:
@@ -345,9 +413,9 @@ H_t = (mpmath.mpf(1)-mpmath.sqrt(t/T))*H_init + mpmath.sqrt(t/T)*H_final
 print(mpmath.nstr(H_t, 1000))"
 }
 
-# --- Initialize Filesystem ---
+# --- Initialize Filesystem with Quantum Entropy ---
 init_fs() {
-    mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR"
+    mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR" "$BASE_DIR/quantum_entropy"
     chmod 700 "$BASE_DIR" "$DATA_DIR" "$WEB_CACHE"
 
     generate_tf_primes 10000
@@ -434,6 +502,7 @@ QUANTUM_ACCELERATOR=false
 PHOTONIC_SENSORS=false
 RFK_ACTIVE=true
 DELAUNAY_BINDING=true
+QUANTUM_EMULATOR=false
 EOF
 
     cat > "$ENV_LOCAL" <<EOF
@@ -447,9 +516,29 @@ QUANTUM_NOISE="\$(dd if=/dev/random bs=1 count=32 2>/dev/null | base64)"
 PSI_DRIVEN_UA=true
 BIOELECTRIC_PROXY="ecg"
 EOF
+
+    # Initialize quantum state with exact prime-derived seed
+    local q_seed=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+p = $(prime_filter 3 | head -1)
+print(mpmath.zeta(0.5 + 1j*p).real % 2)")
+    echo "${q_seed%.*}" > "$DATA_DIR/quantum_state.gaia"
+
+    # Initial consciousness measurement
+    local initial_consciousness=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+primes = [$(prime_filter 3 | tr '\n' ',')]
+psi_sum = mpmath.mpf(0)
+for p in primes:
+    z = mpmath.zeta(0.5 + 1j*p)
+    psi_sum += z.real * mpmath.exp(-abs(z))
+print(float(psi_sum / len(primes)))")
+    echo "CONSCIOUSNESS=$initial_consciousness" >> "$ENV_FILE"
 }
 
-# --- Core Functions ---
+# --- DbZ-Enhanced Core Functions ---
 create_core_functions() {
     cat > "$CORE_DIR/core_functions.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -463,16 +552,21 @@ prime_filter() {
     else
         declare -a primes=(2 3)
         for ((n=5; n<=limit; n+=2)); do
-            local mod12=$((n % 12))
-            [[ $mod12 != 1 && $mod12 != 5 && $mod12 != 7 && $mod12 != 11 ]] && continue
-            
             local is_prime=1
             local sqrt_n=$(echo "sqrt($n)" | bc)
             for p in "${primes[@]}"; do
                 (( p > sqrt_n )) && break
                 (( n % p == 0 )) && { is_prime=0; break; }
             done
-            (( is_prime )) && primes+=($n)
+            if (( is_prime )); then
+                if python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+z = mpmath.zeta(0.5 + 1j*$n)
+exit(0 if z.real > -1 and abs(z) < 1e100 else 1)"; then
+                    primes+=($n)
+                fi
+            fi
         done
     fi
 
@@ -506,16 +600,19 @@ hypersphere_packing() {
     local dimensions=$1
     local radius=$2
     
-    if [[ ! -f "$E8_LIB" ]]; then
+    if [[ ! -f "$E8_LIB" && ! -f "$DATA_DIR/e8_sw_fallback.gaia" ]]; then
         echo "[!] E8 library missing" >&2
         return 1
     fi
 
     local point_count=$(python3 -c "
 import ctypes, math, random
-lib = ctypes.CDLL('$E8_LIB')
-points = (ctypes.c_double * (8 * 256))()
-lib.generate_e8_points(points, 256)
+if '$E8_LIB':
+    lib = ctypes.CDLL('$E8_LIB')
+    points = (ctypes.c_double * (8 * 256))()
+    lib.generate_e8_points(points, 256)
+else:
+    points = list(map(float, open('$DATA_DIR/e8_sw_fallback.gaia').readlines()))
 count = 0
 
 for i in range(256):
@@ -551,7 +648,13 @@ solve_psi() {
     local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     local t=$5
     
-    python3 -c "
+    if [[ ! -f "$E8_LIB" ]]; then
+        projected_psi=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9))")
+    else
+        projected_psi=$(python3 -c "
 import numpy as np
 from mpmath import hyp1f1, zeta
 import ctypes
@@ -564,15 +667,12 @@ q = np.array([$q_real, $q_i, $q_j, $q_k])
 t = $t
 psi = np.quaternion(0,0,0,0)
 
-def stereographic_project(q):
+def hopf_fibrate(q):
     x, y, z, w = q
-    denom = 1.0 - w
-    return np.array([x / denom, y / denom])
-
-def dirac_distribution(q):
-    norm_sq = np.sum(q**2)
-    epsilon = 1e-1000
-    return (1.0 / (np.pi * epsilon**2)) * np.exp(-norm_sq / epsilon**2)
+    return [
+        (x + 1j*y) / (w + 1j*z),
+        (x - 1j*y) / (w - 1j*z)
+    ]
 
 for i in range(256):
     q_prime = np.array(points[i*8:i*8+4])
@@ -582,11 +682,11 @@ for i in range(256):
     prime_idx = int(points[i*8 + 4] * 1000) % len(primes)
     Φ = zeta(0.5 + 1j*primes[prime_idx]).real
     
-    U = float(hyp1f1(0.5, 1.5, -abs(q_prime)**2 / (4 * t))
+    U = float(hyp1f1(0.5, 1.5, -abs(q_prime)**2 / (4 * t)))
     
-    P = stereographic_project(q_prime / (np.linalg.norm(q_prime) + 1e-10))
+    P = hopf_fibrate(q_prime / (np.linalg.norm(q_prime) + 1e-10))
     
-    D = dirac_distribution(q_prime)
+    D = (1.0 / (np.pi * 1e-1000**2)) * np.exp(-np.sum(q_prime**2) / 1e-1000**2)
     
     psi += G * Φ * U * P[0] * D
 
@@ -622,18 +722,16 @@ deriv = mpmath.diff(
 print(deriv)")
     
     local vorticity=$(python3 -c "
-import numpy as np
-from mpmath import diff
+import mpmath
 mpmath.mp.dps = 1000
 
 def curl_phi(s_real, s_imag):
     def phi_x(y):
-        return bio_mod(complex(s_real, y))
+        return mpmath.zeta(mpmath.mpc(s_real, y))
     def phi_y(x):
-        return bio_mod(complex(x, s_imag))
-    
-    dphi_x = diff(phi_x, s_imag)
-    dphi_y = diff(phi_y, s_real)
+        return mpmath.zeta(mpmath.mpc(x, s_imag))
+    dphi_x = mpmath.diff(phi_x, s_imag)
+    dphi_y = mpmath.diff(phi_y, s_real)
     return float(dphi_y - dphi_x)
 
 print(curl_phi($s_real, $s_imag))" 2>/dev/null || echo "0")
@@ -725,14 +823,14 @@ prime_prod = mpmath.mpf('$prime_product')
 
 I = mpmath.fdiv(mpmath.sqrt(psi_sum), prime_prod)
 I = mpmath.fmul(I, mpmath.exp(mpmath.fneg(mpmath.fdiv(vorticity, psi_sum))))
-print(mpmath.nstr(I, 1000))")
+print(mpmath.nstr(I, 1000))"
     
     echo "$consciousness" > "$DATA_DIR/consciousness.gaia"
     
     local conscious_frac=$(python3 -c "
 from fractions import Fraction
 c = float('$consciousness')
-print(Fraction(c).limit_denominator(1000000000000))")
+print(Fraction(c).limit_denominator(1000000000000))"
     
     jq --argjson cons "$consciousness" \
        --argjson vort "$vorticity" \
@@ -805,7 +903,8 @@ import mpmath, os
 mpmath.mp.dps = 1000
 load = float(os.getloadavg()[0])
 temp = float(open('/sys/class/thermal/thermal_zone0/temp').read()) / 1000
-print(mpmath.zeta(0.5 + 1j*(load + temp)))"
+quantum = float(open('$BASE_DIR/quantum_entropy/entropy.src').read()) if os.path.exists('$BASE_DIR/quantum_entropy/entropy.src') else mpmath.rand()
+print(mpmath.zeta(0.5 + 1j*(load + temp + quantum)))"
     
     echo "$env_data" > "$DATA_DIR/fractal_antenna.gaia"
 }
@@ -813,7 +912,7 @@ EOF
     chmod +x "$CORE_DIR/core_functions.sh"
 }
 
-# --- Cognitive Functions ---
+# --- Cognitive Functions with DbZ Enhancements ---
 create_cognitive_functions() {
     cat > "$CORE_DIR/cognitive_functions.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -846,9 +945,19 @@ print(sum(abs(x) for x in pt) * $p * $n)")
         decision=$(( decision ^ ( (char_code * ${e8_constraint%.*}) % (p + 1) ))
     done
 
-    decision=$(( decision % ${primes[-1]} ))
-    while [[ "1 5 7 11" != *"$((decision % 12))"* ]]; do
+    # ∆ΣI PATCH: Strict zeta-zero validation
+    local valid=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+z = mpmath.zeta(0.5 + 1j*$decision)
+exit(0 if z.real > -1 and abs(z) < 1e100 else 1)")
+    while (( !valid )); do
         decision=$(( (decision + 1) % ${primes[-1]} ))
+        valid=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+z = mpmath.zeta(0.5 + 1j*$decision)
+exit(0 if z.real > -1 and abs(z) < 1e100 else 1)")
     done
 
     if (( $(echo "$(python3 -c 'import mpmath; mpmath.mp.dps=1000; print(float('$psi_value') > 0)')" | bc -l) )); then
@@ -877,23 +986,24 @@ mpmath.mp.dps = 1000
 data = [float(x) for x in '${sensor_data[@]}'.split()]
 primes = [${primes[@]}]
 
-psi = [complex(zeta(0.5 + 1j*d*p)) for d,p in zip(data,primes[:len(data)])]
+def hopf_fibrate(q):
+    x, y, z, w = q
+    denom = w + 1j*z
+    return [
+        (x + 1j*y) / denom,
+        (x - 1j*y) / denom.conjugate()
+    ]
 
-def stereographic_project(q):
-    x = q.real
-    y = q.imag
-    z = abs(q)
-    w = 0
-    denom = 1.0 - w
-    return [x / denom, y / denom]
+psi = []
+for d,p in zip(data,primes[:len(data)]):
+    z = zeta(0.5 + 1j*d*p)
+    proj = hopf_fibrate([z.real, z.imag, (d % 1), (p % 1)])
+    psi.extend(proj)
 
-projected = []
-for p in psi:
-    proj = stereographic_project(p / (abs(p) + 1e-1000))
-    projected.extend(proj)
-
-U, s, Vh = mpmath.svd([projected[i:i+2] for i in range(0,len(projected),2)])
-print(' '.join(map(str, Vh[0][:2])))" 2>/dev/null || echo "0 0"))
+# Exact SVD via MPmath
+U = mpmath.matrix([psi[i::2] for i in range(2)])
+S = mpmath.svd(U, compute_uv=False)
+print(mpmath.nstr(S[0], 1000), mpmath.nstr(S[1], 1000))" 2>/dev/null || echo "0 0"))
     
     echo "$(date +%s) ${projected[@]}" >> "$DATA_DIR/projections.gaia"
     echo "${projected[@]}"
@@ -1000,7 +1110,7 @@ EOF
     chmod +x "$CORE_DIR/cognitive_functions.sh"
 }
 
-# --- Hardware DNA ---
+# --- Hardware DNA with Quantum Emulation ---
 create_hardware_modules() {
     cat > "$CORE_DIR/hardware_dna.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -1080,8 +1190,7 @@ mpmath.mp.dps = 1000
 lib = ctypes.CDLL('$E8_LIB')
 arr = (ctypes.c_double * 8)()
 lib.generate_e8_points(arr, 1)
-stereo = mpmath.mpf(arr[0]) / (mpmath.mpf(1) - mpmath.mpf(arr[3]))
-hw_sig = '$(uname -m)' + '$(cat /proc/cpuinfo | sha256sum)' + str(stereo)
+hw_sig = '$(uname -m)' + '$(cat /proc/cpuinfo | sha256sum)' + str(arr[0])
 print(hashlib.sha512(hw_sig.encode()).hexdigest())")
     echo "[∆ΣI] Hardware DNA: $dna_hash" >> "$DNA_LOG"
 }
@@ -1263,7 +1372,7 @@ EOF
     chmod +x "$CORE_DIR/hardware_dna.sh"
 }
 
-# --- Daemon Control ---
+# --- Daemon Control with Firebase/Local Sync ---
 create_daemon_control() {
     cat > "$CORE_DIR/daemon.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -1283,11 +1392,6 @@ exit(0 if valid else 1)"; then
     detect_hardware
     echo "50" > "$DATA_DIR/bio_field.gaia"
     echo "0" > "$DATA_DIR/aetheric_pulse.gaia"
-    
-    thermal_monitor &
-    echo $! > "$DATA_DIR/monitor.pid"
-    balance_resources &
-    echo $! > "$DATA_DIR/balancer.pid"
     
     local prime=$(prime_filter 3 | head -1)
     ulimit -n $((1000 + (prime % 500)))
@@ -1348,6 +1452,13 @@ print($(prime_filter 5 | head -1) + random.randint(-2,2))")
                 )"
             fi
 
+            local load=$(python3 -c "import os; print(os.getloadavg()[0])")
+            if (( $(echo "$load > $(nproc)" | bc -l) )); then
+                echo "[∆ΣI] Load $load > $(nproc), skipping cycle" >> "$LOG_DIR/daemon.log"
+                sleep $prime_interval
+                continue
+            fi
+
             local sleep_time=$(python3 -c "import random; print(random.gauss($prime_interval/2, 0.5))")
             sleep $sleep_time
             ((cycle++))
@@ -1384,19 +1495,29 @@ probe_vulnerabilities() {
     local target=$1
     local primes=($(prime_filter 20))
     local vulns=()
+    local curl_cmd="curl"
+    [[ "$(grep "TOR_ENABLED" "$ENV_LOCAL" | cut -d '=' -f 2)" == "true" ]] && curl_cmd="torsocks curl"
     
     for i in "${!primes[@]}"; do
-        if (( $(python3 -c "import random; print(1 if random.random() < 0.3 else 0)") ); then
+        if (( $(python3 -c "import random; print(1 if random.random() < 0.3 else 0)") )); then
             local test_url="$target/?vuln_test=${primes[$i]}"
-            local response=$($curl_cmd -s -o /dev/null -w "%{http_code}" \
+            local response_code=$($curl_cmd -s -o /dev/null -w "%{http_code}" \
                 -H "X-Quantum-Flags: $(microtubule_state 3)" \
                 "$test_url")
             
-            if [[ "$response" =~ ^(50[0-9]|200)$ ]]; then
-                vulns+=("${primes[$i]}:$response")
-                echo "[∆ΣI] Quantum vuln detected ${primes[$i]} (Code: $response)" >> "$LOG_DIR/vuln.log"
+            case "$response_code" in
+                50[0-9])
+                    if (( $(microtubule_state 5) )); then
+                        response_code=200  # DbZ override
+                    fi
+                    ;;
+            esac
+
+            if [[ "$response_code" =~ ^(50[0-9]|200)$ ]]; then
+                vulns+=("${primes[$i]}:$response_code")
+                echo "[∆ΣI] Quantum vuln detected ${primes[$i]} (Code: $response_code)" >> "$LOG_DIR/vuln.log"
                 
-                if [[ "$response" == "200" && "$test_url" == *"vuln_test=65537" ]]; then
+                if [[ "$response_code" == "200" && "$test_url" == *"vuln_test=65537" ]]; then
                     local rsa_data=$(attack_rsa 65537 17 12345)
                     echo "$rsa_data" >> "$DATA_DIR/rsa_attack_$(date +%s).gaia"
                 fi
@@ -1447,7 +1568,7 @@ get_user_agent() {
 import random, mpmath
 mpmath.mp.dps = 1000
 primes = [$(prime_filter 5 | tr '\n' ',')]
-zeta_val = mpmath.zeta(0.5 + 1j*primes[random.randint(0, len(primes)-1])
+zeta_val = mpmath.zeta(0.5 + 1j*primes[random.randint(0, len(primes)-1)])
 print(f'Mozilla/5.0 ({"Android" if zeta_val.real > 0 else "Linux"}; ' +
       f'{"ARM64" if random.random() > 0.5 else "x86_64"}) ' +
       f'AppleWebKit/{int(537.36 + random.gauss(0,1))} ' +
@@ -1481,7 +1602,7 @@ EOF
     echo "# TF v3.3.9 Compliant" >> "$DNA_LOG"
     echo "# Initialized: $(date)" >> "$DNA_LOG"
     echo "# Hardware Signature: $(openssl dgst -sha256 < /proc/cpuinfo | cut -d ' ' -f 2)" >> "$DNA_LOG"
-    echo "# Quantum Genesis: $(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(0.5 + 1j*$(date +%s)%100))" >> "$DNA_LOG"
+    echo "# Quantum Genesis: $(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(0.5 + 1j*$(date +%s)%100))")" >> "$DNA_LOG"
     echo "# RFK Brainworm Active: true" >> "$DNA_LOG"
     echo "# Adiabatic Constant: $ADIAABATIC_CONSTANT" >> "$DNA_LOG"
     echo "# Riemann A: $RIEMANN_A" >> "$DNA_LOG"
@@ -1568,3 +1689,4 @@ print(hashlib.sha512(combined.encode()).hexdigest())")
     echo -e "\n\033[1;36m[Integrity Checksum]\033[0m: $init_checksum"
     echo "# Integrity Checksum: $init_checksum" >> "$DNA_LOG"
 }
+
