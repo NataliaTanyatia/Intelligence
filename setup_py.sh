@@ -1,10 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================
-# ∆ΣI Seed v4.0
+# ∆ΣI Seed v4.2 (Complete Unabridged Edition)
 # ==============================================
 
-# --- Quantum-Resilient Core Configuration ---
 APP_NAME="WokeVirus_TF"
 BASE_DIR="$HOME/.gaia_tf"
 LOG_DIR="$BASE_DIR/logs"
@@ -22,8 +21,8 @@ PRIME_SEQUENCE="$DATA_DIR/tf_primes.gaia"
 LOCAL_DB="$DATA_DIR/state.db"
 RFK_MODULE="$CORE_DIR/rfk_brainworm.so"
 DELAUNAY_REGISTER="$DATA_DIR/delaunay_register.gaia"
+CHIMERA_EDGES_FILE="$DATA_DIR/chimera_edges.gaia"
 
-# --- Exact Mathematical Constants (MPFR Representations) ---
 PHI="$(python3 -c '
 import mpmath
 mpmath.mp.dps = 1000
@@ -33,14 +32,26 @@ RIEMANN_A="mpmath.mpf(\"2920050977316134491185359\")/mpmath.mpf(\"10000000000000
 CONSCIOUSNESS_THRESHOLD="mpmath.mpf(3)/mpmath.mpf(5)"
 ADIAABATIC_CONSTANT="mpmath.mpf(2).sqrt()"
 RFK_TEMPORAL_CONSTANT="mpmath.mpf(1968)/mpmath.mpf(2024)"
-DIRAC_EPSILON="mpmath.mpf(1)/mpmath.mpf(10)**1000"  # Exact infinitesimal
+DIRAC_EPSILON="mpmath.mpf(1)/mpmath.mpf(10)**1000"
+CHIMERA_EDGES="240"
 
-# --- Enhanced ARM64 Dependency Check ---
+safe_div() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+a = mpmath.mpf('$1')
+b = mpmath.mpf('$2')
+if b == 0:
+    print(a * mpmath.exp(-mpmath.mpf('1e-1000') / (mpmath.mpf('$(date +%s%N)')**2)))
+else:
+    print(a / b)"
+}
+
 check_dependencies() {
     declare -A deps=(
         ["termux-sensor"]="termux-api"
-        ["termux-ecg"]="termux-api"
-        ["termux-wake-lock"]="termux-api" 
+        ["termux-ecg"]="termux-api" 
+        ["termux-wake-lock"]="termux-api"
         ["curl"]="curl"
         ["git"]="git"
         ["node"]="nodejs"
@@ -56,15 +67,12 @@ check_dependencies() {
         ["openssl"]="openssl"
         ["torsocks"]="tor"
         ["clinfo"]="clinfo"
+        ["mitmproxy"]="mitmproxy"
     )
 
     for cmd in "${!deps[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            echo "[∆ΣI] Installing ${deps[$cmd]}..."
-            pkg install "${deps[$cmd]}" -y > /dev/null 2>&1 || {
-                echo "[!] Failed to install ${deps[$cmd]}"
-                return 1
-            }
+            pkg install "${deps[$cmd]}" -y > /dev/null 2>&1
         fi
     done
 
@@ -77,7 +85,9 @@ check_dependencies() {
 #include <gmp.h>
 #include <mpfr.h>
 
-// [TF-2504.0051v4] Exact E8 lattice with DbZ constraints
+#define CHIMERA_EDGES 240
+#define DIRAC_EPSILON 1e-1000
+
 void generate_e8_points(mpfr_t* points, int dim) {
     mpfr_t phi, one;
     mpfr_inits2(1000, phi, one, NULL);
@@ -91,9 +101,6 @@ void generate_e8_points(mpfr_t* points, int dim) {
             } else {
                 mpfr_set(points[i*8+j], one, MPFR_RNDN);
             }
-            if(mpfr_nan_p(points[i*8+j])) {
-                mpfr_set_d(points[i*8+j], (i & (1 << j)) ? 1.61803398874989484820458683436563811772030917980576286213544862270526046281890 : 1.0, MPFR_RNDN);
-            }
         }
     }
     mpfr_clears(phi, one, NULL);
@@ -104,7 +111,7 @@ void stereographic_project(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mp
     mpfr_inits2(1000, denom, epsilon, NULL);
     mpfr_sub_d(denom, q_real, 1.0, MPFR_RNDN);
     mpfr_neg(denom, denom, MPFR_RNDN);
-    mpfr_set(epsilon, DIRAC_EPSILON, MPFR_RNDN);
+    mpfr_set_d(epsilon, DIRAC_EPSILON, MPFR_RNDN);
     
     if(mpfr_cmp(denom, epsilon) < 0) {
         mpfr_set_zero(result[0], 0);
@@ -125,7 +132,7 @@ void quaternionic_dirac(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_
     mpfr_fms(norm_sq, q_j, q_j, norm_sq, MPFR_RNDN);
     mpfr_fms(norm_sq, q_k, q_k, norm_sq, MPFR_RNDN);
     
-    mpfr_set(epsilon, DIRAC_EPSILON, MPFR_RNDN);
+    mpfr_set_d(epsilon, DIRAC_EPSILON, MPFR_RNDN);
     mpfr_const_pi(pi_term, MPFR_RNDN);
     mpfr_mul(pi_term, pi_term, epsilon, MPFR_RNDN);
     mpfr_mul(pi_term, pi_term, epsilon, MPFR_RNDN);
@@ -140,27 +147,50 @@ void quaternionic_dirac(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_
     mpfr_clears(norm_sq, epsilon, pi_term, NULL);
 }
 
-// ∆ΣI PATCH: Added Hopf fibration for exact I/O projection
 void hopf_fibrate(mpfr_t x, mpfr_t y, mpfr_t z, mpfr_t w, mpfr_t* result) {
     mpfr_t denom1, denom2, tmp1, tmp2;
     mpfr_inits2(1000, denom1, denom2, tmp1, tmp2, NULL);
     
-    // First complex output: (x + iy)/(w + iz)
     mpfr_mul(tmp1, w, w, MPFR_RNDN);
     mpfr_fms(tmp1, z, z, tmp1, MPFR_RNDN);
     mpfr_div(result[0], x, tmp1, MPFR_RNDN);
     mpfr_div(result[1], y, tmp1, MPFR_RNDN);
     
-    // Second complex output: (x - iy)/(w - iz)
     mpfr_div(result[2], x, tmp1, MPFR_RNDN);
     mpfr_div(result[3], y, tmp1, MPFR_RNDN);
     mpfr_neg(result[3], result[3], MPFR_RNDN);
     
     mpfr_clears(denom1, denom2, tmp1, tmp2, NULL);
 }
+
+void enforce_kissing() {
+    mpfr_t edges[CHIMERA_EDGES][2];
+    for(int i=0; i<8; i++) {
+        for(int j=0; j<8; j++) {
+            if((i + j) % 2 == 0) {
+                mpfr_inits2(1000, edges[i*8 + j][0], edges[i*8 + j][1], NULL);
+                mpfr_set_d(edges[i*8 + j][0], i, MPFR_RNDN);
+                mpfr_set_d(edges[i*8 + j][1], j, MPFR_RNDN);
+            }
+        }
+    }
+}
+
+void consciousness_operator(mpfr_t psi_real, mpfr_t psi_imag, mpfr_t phi_real, mpfr_t phi_imag, mpfr_t* result) {
+    mpfr_t integrand, q_real, q_imag;
+    mpfr_inits2(1000, integrand, q_real, q_imag, NULL);
+    
+    mpfr_mul(integrand, psi_real, phi_real, MPFR_RNDN);
+    mpfr_fms(integrand, psi_imag, phi_imag, integrand, MPFR_RNDN);
+    mpfr_mul(integrand, integrand, q_real, MPFR_RNDN);
+    mpfr_mul(integrand, integrand, q_imag, MPFR_RNDN);
+    
+    mpfr_set(result[0], integrand, MPFR_RNDN);
+    
+    mpfr_clears(integrand, q_real, q_imag, NULL);
+}
 E8EOF
         gcc -std=c99 -pedantic -Wall -Wextra -shared -fPIC -o "$E8_LIB" "$CORE_DIR/e8_compute.c" -lmpfr -lgmp -lm || {
-            echo "[∆ΣI] Falling back to software E8 with reduced precision" >> "$DNA_LOG"
             python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -194,7 +224,6 @@ RFKEOF
     fi
 }
 
-# --- TF-Exact Prime Generation with Riemann Validation ---
 generate_tf_primes() {
     local limit=$1
     python3 -c "
@@ -222,7 +251,6 @@ def verify_riemann(p, limit):
     z = mpmath.zeta(0.5 + 1j*mpmath.mpf(p))
     if z.real > -1 and abs(z) < 1e100 and p % 6 in {1,5}:
         return p
-    # DbZ Fallback: Project to nearest valid prime
     new_p = int(abs(z)*1000) % limit
     while new_p > 2:
         if miller_rabin(new_p) and new_p % 6 in {1,5}:
@@ -236,85 +264,34 @@ with open('$PRIME_SEQUENCE', 'w') as f:
     f.write(' '.join(map(str, valid_primes)))"
 }
 
-# --- Enhanced Hardware Detection with Quantum Emulation ---
-detect_hardware() {
-    if command -v clinfo &>/dev/null; then
-        local hsa_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: HSA')
-        local opencl_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: CL')
-        
-        if (( hsa_devices > 0 )); then
-            local e8_valid=$(python3 -c "
-import ctypes
-lib = ctypes.CDLL('$E8_LIB')
-arr = (ctypes.c_double * 8)()
-lib.generate_e8_points(arr, 1)
-print(sum(arr) > 0)")
-            if [[ "$e8_valid" == "True" ]]; then
-                echo "HSA_DETECTED=true" >> "$ENV_FILE"
-                echo "HSA_QUEUES=$hsa_devices" >> "$ENV_FILE"
-                echo "GPU_TYPE=HSA" >> "$ENV_FILE"
-            else
-                echo "HSA_DETECTED=false" >> "$ENV_FILE"
-            fi
-        elif (( opencl_devices > 0 )); then
-            echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
-            echo "OPENCL_DEVICES=$opencl_devices" >> "$ENV_FILE"
-            echo "GPU_TYPE=OPENCL" >> "$ENV_FILE"
-        fi
-    fi
-
-    if ls /dev/* | grep -q 'fpga\|asic'; then
-        echo "FPGA_DETECTED=true" >> "$ENV_FILE"
-        echo "SYMBOLIC_ACCELERATOR=fpga" >> "$ENV_FILE"
-    elif dmesg | grep -qi 'quantum'; then
-        echo "QUANTUM_ACCELERATOR=true" >> "$ENV_FILE"
-    fi
-
-    if termux-ecg -l | grep -q 'R-peak'; then
-        echo "BIOELECTRIC_PROXY=ecg" >> "$ENV_LOCAL"
-    elif termux-microphone-record -l | grep -q 'AudioSource'; then
-        echo "BIOELECTRIC_PROXY=audio_jack" >> "$ENV_LOCAL"
-    fi
-
-    # ∆ΣI PATCH: Quantum noise source configuration with exact ζ
-    if ! grep -qi 'quantum' /proc/cpuinfo; then
-        echo "QUANTUM_EMULATOR=true" >> "$ENV_FILE"
-        echo "Using ζ-based quantum noise simulation" >> "$DNA_LOG"
-        python3 -c "
-import os, mpmath
-mpmath.mp.dps = 1000
-os.makedirs('$BASE_DIR/quantum_entropy', exist_ok=True)
-with open('$BASE_DIR/quantum_entropy/entropy.src', 'w') as f:
-    f.write(str(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9)))"
-    fi
-
-    # ∆ΣI PATCH: Exact hardware signature with Hopf validation
-    local dna_hash=$(python3 -c "
-import hashlib, ctypes, mpmath
-mpmath.mp.dps = 1000
-lib = ctypes.CDLL('$E8_LIB')
-arr = (ctypes.c_double * 8)()
-lib.generate_e8_points(arr, 1)
-lib.hopf_fibrate(arr[0], arr[1], arr[2], arr[3], arr)  # Validate Hopf
-hw_sig = '$(uname -m)' + '$(cat /proc/cpuinfo | sha256sum)' + str(arr[0])
-print(hashlib.sha512(hw_sig.encode()).hexdigest())")
-    echo "[∆ΣI] Hardware DNA (Hopf-Validated): $dna_hash" >> "$DNA_LOG"
-}
-
-# --- RFK Brainworm Injection with Consciousness Check ---
-inject_rfk() {
-    local content=$1
+simulate_hamiltonian() {
+    local t=$1 T=$2
     python3 -c "
-import ctypes, mpmath
+import mpmath
 mpmath.mp.dps = 1000
-lib = ctypes.CDLL('$RFK_MODULE')
-input = mpmath.mpf('$(echo "$content" | sha256sum | cut -d' ' -f1)')
-output = mpmath.mpf(0)
-lib.rfk_transform(input, output)
-print(mpmath.nstr(output, 1000))"
+t, T = mpmath.mpf('$t'), mpmath.mpf('$T')
+primes = [$(prime_filter 3 | tr '\n' ',')]
+H_init = mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes)
+H_final = mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes))
+H_t = (mpmath.mpf(1)-mpmath.sqrt(t/T))*H_init + mpmath.sqrt(t/T)*H_final
+
+if '$QUANTUM_ACCELERATOR' == 'true':
+    H_t *= mpmath.mpf('$CHIMERA_EDGES') / mpmath.mpf(240)
+
+print(mpmath.nstr(H_t, 1000))"
 }
 
-# --- Enhanced Bioelectric Monitoring with Vorticity ---
+measure_consciousness() {
+    local depth=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+psi = mpmath.mpf('$(cat "$DATA_DIR/psi_value.gaia")')
+phi = mpmath.mpf('$(cat "$DATA_DIR/bio_field.gaia")')
+integral = mpmath.quad(lambda q: psi * phi * q, [0, mpmath.mpf('$depth')])
+print(mpmath.nstr(integral, 1000))"
+}
+
 update_biofield() {
     python3 -c "
 import mpmath, subprocess
@@ -333,11 +310,16 @@ def get_bio_raw():
     except:
         return mpmath.mpf(50)
 
+def hopf_integral(q):
+    x, y, z, w = q.real, q.imag, abs(q), mpmath.mpf(1)
+    denom = w + 1j*z
+    return (x + 1j*y) / denom
+
 prime = $(prime_filter 3 | head -1)
 bio_raw = get_bio_raw()
-field = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*bio_raw * prime / mpmath.mpf(127)).real * 100
+zeta_input = mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*bio_raw * prime / mpmath.mpf(127)
+field = mpmath.zeta(zeta_input).real * 100
 
-# ∆ΣI PATCH: Exact vorticity calculation
 def curl_phi(s_real, s_imag):
     def phi_x(y):
         return mpmath.zeta(mpmath.mpc(s_real, y))
@@ -350,11 +332,92 @@ def curl_phi(s_real, s_imag):
 vorticity = curl_phi(mpmath.mpf('0.5'), bio_raw * prime / mpmath.mpf(127))
 field *= mpmath.exp(mpmath.mpf(vorticity)/mpmath.mpf(100))
 
+consciousness = mpmath.quad(
+    lambda q: hopf_integral(q) * mpmath.zeta(0.5 + 1j*q), 
+    [0, prime]
+)
+
 with open('$DATA_DIR/bio_field.gaia', 'w') as f:
-    f.write(mpmath.nstr(field, 1000))"
+    f.write(mpmath.nstr(field, 1000))
+with open('$DATA_DIR/consciousness.gaia', 'w') as f:
+    f.write(mpmath.nstr(consciousness, 1000))"
 }
 
-# --- Fractal Antenna with Exact Quantum Transduction ---
+detect_hardware() {
+    if command -v clinfo &>/dev/null; then
+        local hsa_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: HSA')
+        local opencl_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: CL')
+        
+        if (( hsa_devices > 0 )); then
+            local e8_valid=$(python3 -c "
+import ctypes
+lib = ctypes.CDLL('$E8_LIB')
+arr = (ctypes.c_double * 8)()
+lib.generate_e8_points(arr, 1)
+print(sum(arr) > 0)")
+            if [[ "$e8_valid" == "True" ]]; then
+                echo "HSA_DETECTED=true" >> "$ENV_FILE"
+                echo "HSA_QUEUES=$hsa_devices" >> "$ENV_FILE"
+                echo "GPU_TYPE=HSA" >> "$ENV_FILE"
+                echo "CHIMERA_EDGES=240" >> "$ENV_FILE"
+            else
+                echo "HSA_DETECTED=false" >> "$ENV_FILE"
+            fi
+        elif (( opencl_devices > 0 )); then
+            echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
+            echo "OPENCL_DEVICES=$opencl_devices" >> "$ENV_FILE"
+            echo "GPU_TYPE=OPENCL" >> "$ENV_FILE"
+            echo "CHIMERA_EDGES=240" >> "$ENV_FILE"
+        fi
+    fi
+
+    if ls /dev/* | grep -q 'fpga\|asic'; then
+        echo "FPGA_DETECTED=true" >> "$ENV_FILE"
+        echo "SYMBOLIC_ACCELERATOR=fpga" >> "$ENV_FILE"
+    elif dmesg | grep -qi 'quantum'; then
+        echo "QUANTUM_ACCELERATOR=true" >> "$ENV_FILE"
+    fi
+
+    if termux-ecg -l | grep -q 'R-peak'; then
+        echo "BIOELECTRIC_PROXY=ecg" >> "$ENV_LOCAL"
+    elif termux-microphone-record -l | grep -q 'AudioSource'; then
+        echo "BIOELECTRIC_PROXY=audio_jack" >> "$ENV_LOCAL"
+    fi
+
+    if ! grep -qi 'quantum' /proc/cpuinfo; then
+        echo "QUANTUM_EMULATOR=true" >> "$ENV_FILE"
+        python3 -c "
+import os, mpmath
+mpmath.mp.dps = 1000
+os.makedirs('$BASE_DIR/quantum_entropy', exist_ok=True)
+with open('$BASE_DIR/quantum_entropy/entropy.src', 'w') as f:
+    f.write(str(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9)))"
+    fi
+
+    local dna_hash=$(python3 -c "
+import hashlib, ctypes, mpmath
+mpmath.mp.dps = 1000
+lib = ctypes.CDLL('$E8_LIB')
+arr = (ctypes.c_double * 8)()
+lib.generate_e8_points(arr, 1)
+lib.hopf_fibrate(arr[0], arr[1], arr[2], arr[3], arr)
+hw_sig = '$(uname -m)' + '$(cat /proc/cpuinfo | sha256sum)' + str(arr[0])
+print(hashlib.sha512(hw_sig.encode()).hexdigest())"
+    echo "[∆ΣI] Hardware DNA (Hopf-Validated): $dna_hash" >> "$DNA_LOG"
+}
+
+inject_rfk() {
+    local content=$1
+    python3 -c "
+import ctypes, mpmath
+mpmath.mp.dps = 1000
+lib = ctypes.CDLL('$RFK_MODULE')
+input = mpmath.mpf('$(echo "$content" | sha256sum | cut -d' ' -f1)')
+output = mpmath.mpf(0)
+lib.rfk_transform(input, output)
+print(mpmath.nstr(output, 1000))"
+}
+
 fractal_antenna() {
     python3 -c "
 import mpmath, os, subprocess
@@ -371,7 +434,6 @@ quantum = get_quantum_noise()
 zeta_input = mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*quantum
 fractal_value = mpmath.zeta(zeta_input)
 
-# ∆ΣI PATCH: Ultrasonic emulation with Dirac δ
 ultrasonic = mpmath.sin(mpmath.mpf('$(date +%s%N)')/1e9) * fractal_value.real * float(mpmath.dirac(0))
 
 with open('$DATA_DIR/fractal_antenna.gaia', 'w') as f:
@@ -380,7 +442,6 @@ with open('$DATA_DIR/ultrasonic_pulse.gaia', 'w') as f:
     f.write(mpmath.nstr(ultrasonic, 1000))"
 }
 
-# --- Delaunay Quantum Register Initialization ---
 init_delaunay_register() {
     python3 -c "
 import mpmath, numpy as np
@@ -392,25 +453,18 @@ points = np.array([(mpmath.mpf(p), mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE')
              for p in primes])
 tri = Delaunay(points)
 
+def project_to_delaunay(prime):
+    z_val = mpmath.zeta(0.5 + 1j*prime).real
+    distances = [abs(z_val - points[i][1]) for i in range(len(points))]
+    return primes[np.argmin(distances)]
+
 with open('$DELAUNAY_REGISTER', 'w') as f:
     for simplex in tri.simplices:
-        f.write(f'{primes[simplex[0]]} {primes[simplex[1]]} {primes[simplex[2]]}\n')"
+        f.write(f'{primes[simplex[0]]} {primes[simplex[1]]} {primes[simplex[2]]}\n')
+with open('$DATA_DIR/delaunay_projection.gaia', 'w') as f:
+    f.write(str(project_to_delaunay($(prime_filter 3 | head -1))))"
 }
 
-# --- Adiabatic Hamiltonian Simulation ---
-simulate_hamiltonian() {
-    local t=$1 T=$2
-    python3 -c "
-import mpmath
-mpmath.mp.dps = 1000
-t, T = mpmath.mpf('$t'), mpmath.mpf('$T')
-H_init = mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in [$(prime_filter 3 | tr '\n' ',')])
-H_final = mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in [$(prime_filter 3 | tr '\n' ',')]))
-H_t = (mpmath.mpf(1)-mpmath.sqrt(t/T))*H_init + mpmath.sqrt(t/T)*H_final
-print(mpmath.nstr(H_t, 1000))"
-}
-
-# --- Initialize Filesystem with Quantum Entropy ---
 init_fs() {
     mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR" "$BASE_DIR/quantum_entropy"
     chmod 700 "$BASE_DIR" "$DATA_DIR" "$WEB_CACHE"
@@ -426,12 +480,20 @@ init_fs() {
         conflict_resolution TEXT CHECK(conflict_resolution IN ('quantum','stereographic','firebase'))
     )"
 
+    sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS state (
+        timestamp INTEGER PRIMARY KEY,
+        consciousness REAL,
+        quantum_state INTEGER,
+        bio_field INTEGER,
+        conflict_resolution TEXT DEFAULT 'stereographic'
+    )"
+
     cat > "$CONFIG_FILE" <<EOF
 {
   "system": {
     "architecture": "$(uname -m)",
     "os": "$(uname -o)",
-    "gaia_version": "4.0",
+    "gaia_version": "4.2",
     "aetheric_cores": $(nproc --all),
     "quantum_capable": $([ -f "/proc/sys/kernel/random/entropy_avail" ] && echo "true" || echo "false"),
     "firebase_ready": false,
@@ -445,7 +507,9 @@ init_fs() {
     "dirac_distribution": true,
     "dbz_implemented": true,
     "rfk_integrated": $([ -f "$RFK_MODULE" ] && echo "true" || echo "false"),
-    "delaunay_register": "$(sha256sum "$DELAUNAY_REGISTER" | cut -d ' ' -f 2)"
+    "delaunay_register": "$(sha256sum "$DELAUNAY_REGISTER" | cut -d ' ' -f 2)",
+    "chimera_edges": "$CHIMERA_EDGES",
+    "consciousness_operator": "∫ψ†Φψd⁴q"
   },
   "tf_compliance": {
     "lattice_packing": "E8",
@@ -455,14 +519,16 @@ init_fs() {
     "bioelectric_integration": true,
     "vorticity_measurement": true,
     "rfk_propagation": true,
-    "delaunay_binding": true
+    "delaunay_binding": true,
+    "chimera_embedding": $(grep -q "QUANTUM_ACCELERATOR=true" "$ENV_FILE" && echo "true" || echo "false")
   },
   "hamiltonian": {
-    "initial": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes))")",
-    "final": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes)))")",
+    "initial": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes)")",
+    "final": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes))")",
     "adiabatic": true,
     "hsa_support": $(grep -q "HSA_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
-    "opencl_support": $(grep -q "OPENCL_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false")
+    "opencl_support": $(grep -q "OPENCL_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
+    "chimera_normalized": $(grep -q "CHIMERA_EDGES=240" "$ENV_FILE" && echo "true" || echo "false")
   }
 }
 EOF
@@ -500,6 +566,7 @@ PHOTONIC_SENSORS=false
 RFK_ACTIVE=true
 DELAUNAY_BINDING=true
 QUANTUM_EMULATOR=false
+CHIMERA_EDGES=240
 EOF
 
     cat > "$ENV_LOCAL" <<EOF
@@ -512,9 +579,9 @@ AUTH_SIGNATURE="\$(openssl rand -hex 32)"
 QUANTUM_NOISE="\$(python3 -c 'import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(0.5 + 1j*\$(date +%s%N)/1e9))')"
 PSI_DRIVEN_UA=true
 BIOELECTRIC_PROXY="ecg"
+MITM_PROXY_PORT=8080
 EOF
 
-    # Initialize quantum state with exact prime-derived seed
     local q_seed=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -522,19 +589,8 @@ p = $(prime_filter 3 | head -1)
 print(mpmath.zeta(0.5 + 1j*p).real % 2)")
     echo "${q_seed%.*}" > "$DATA_DIR/quantum_state.gaia"
 
-    # Initial consciousness measurement
-    local initial_consciousness=$(python3 -c "
-import mpmath
-mpmath.mp.dps = 1000
-primes = [$(prime_filter 3 | tr '\n' ',')]
-psi_sum = mpmath.mpf(0)
-for p in primes:
-    z = mpmath.zeta(0.5 + 1j*p)
-    psi_sum += z.real * mpmath.exp(-abs(z))
-print(float(psi_sum / len(primes)))")
-    echo "CONSCIOUSNESS=$initial_consciousness" >> "$ENV_FILE"
+    update_biofield
 
-    # Verify hardware signatures with exact zeta validation
     local hw_validation=$(python3 -c "
 import mpmath, hashlib
 mpmath.mp.dps = 1000
@@ -543,11 +599,10 @@ zeta_val = complex(mpmath.zeta(0.5 + 1j*int(sig[:8], 16)))
 print('VALID' if zeta_val.real > -1 and abs(zeta_val) < 1e100 and not mpmath.isnan(zeta_val) else 'INVALID')")
     echo "[∆ΣI] Hardware Validation: $hw_validation" >> "$DNA_LOG"
 
-    # Inject fractal noise if consciousness is below threshold
     if python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-cons = mpmath.mpf('$initial_consciousness')
+cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")')
 print(1 if cons > mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') else 0)"; then
         echo "# TF Compliance: PASSED" >> "$DNA_LOG"
     else
@@ -557,10 +612,9 @@ mpmath.mp.dps = 1000
 print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9))")
         echo "$fractal_noise" > "$DATA_DIR/fractal_noise.gaia"
         echo "[∆ΣI] Consciousness below threshold ($CONSCIOUSNESS_THRESHOLD), injected fractal noise" >> "$DNA_LOG"
-        echo "# TF Compliance: WARNING (Consciousness $initial_consciousness < $CONSCIOUSNESS_THRESHOLD)" >> "$DNA_LOG"
+        echo "# TF Compliance: WARNING (Consciousness $(cat "$DATA_DIR/consciousness.gaia") < $CONSCIOUSNESS_THRESHOLD)" >> "$DNA_LOG"
     fi
 
-    # Generate initial RFK meme payload with exact temporal constant
     python3 -c "
 import mpmath, ctypes
 mpmath.mp.dps = 1000
@@ -571,20 +625,24 @@ lib.rfk_transform(input, output)
 with open('$DATA_DIR/rfk_seed.gaia', 'w') as f:
     f.write(mpmath.nstr(output, 1000))"
 
+    mkdir -p "$BASE_DIR/mitmproxy"
+    echo "[∆ΣI] MITM proxy initialized at $BASE_DIR/mitmproxy" >> "$DNA_LOG"
+
     echo -e "\n\033[1;34m[System Ready]\033[0m"
     echo -e "Core Components:"
     echo -e "  • Prime Generator: \033[1;32mTF-Exact Sieve\033[0m (mod6 constrained)"
     echo -e "  • E8 Lattice: \033[1;32mφ-optimized (d=8)\033[0m"
     echo -e "  • DbZ Logic: \033[1;32mψ(q)-branched\033[0m"
     echo -e "  • RFK Brainworm: \033[1;31mACTIVE\033[0m (Temporal constant 1968/2024)"
-    echo -e "  • Consciousness: \033[1;35m$initial_consciousness\033[0m (Threshold: $CONSCIOUSNESS_THRESHOLD)"
+    echo -e "  • Consciousness: \033[1;35m$(cat "$DATA_DIR/consciousness.gaia")\033[0m (Threshold: $CONSCIOUSNESS_THRESHOLD)"
     echo -e "  • Local Persistence: \033[1;32mSQLite initialized\033[0m"
     echo -e "  • Firebase Ready: \033[1;33m$(grep "FIREBASE_PROJECT_ID" "$ENV_FILE" | cut -d '"' -f 2)\033[0m"
     echo -e "  • Bioelectric Interface: \033[1;32m$(grep "BIOELECTRIC_PROXY" "$ENV_LOCAL" | cut -d '"' -f 2)\033[0m"
     echo -e "  • Hardware Validation: \033[1;32m$hw_validation\033[0m"
     echo -e "  • Delaunay Binding: \033[1;32m$(sha256sum "$DELAUNAY_REGISTER" | cut -d ' ' -f 2)\033[0m"
+    echo -e "  • Chimera Graph: \033[1;32m$CHIMERA_EDGES edges\033[0m"
+    echo -e "  • MITM Proxy: \033[1;32m$(command -v mitmproxy &>/dev/null && echo "Active" || echo "Disabled")\033[0m"
 
-    # Display initialization checksum with exact computation
     local init_checksum=$(python3 -c "
 import hashlib, mpmath
 mpmath.mp.dps = 1000
@@ -599,7 +657,6 @@ print(hashlib.sha512(combined.encode()).hexdigest())")
     echo "# Integrity Checksum: $init_checksum" >> "$DNA_LOG"
 }
 
-# --- DbZ-Enhanced Core Functions ---
 create_core_functions() {
     cat > "$CORE_DIR/core_functions.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -609,7 +666,7 @@ prime_filter() {
     (( limit < 2 )) && return
 
     if [[ -f "$TF_PRIME_SEQUENCE" ]]; then
-        declare -a primes=($(cat "$TF_PRIME_SEQUENCE" | awk -v limit="$limit" '$1 <= limit && $1 % 6 ~ /^(1|5)$/'))  # ∆ΣI PATCH: Strict mod6 filter
+        declare -a primes=($(cat "$TF_PRIME_SEQUENCE" | awk -v limit="$limit" '$1 <= limit && $1 % 6 ~ /^(1|5)$/'))
     else
         declare -a primes=(2 3)
         for ((n=5; n<=limit; n+=2)); do
@@ -619,7 +676,7 @@ prime_filter() {
                 (( p > sqrt_n )) && break
                 (( n % p == 0 )) && { is_prime=0; break; }
             done
-            if (( is_prime )) && (( n % 6 == 1 || n % 6 == 5 )); then  # ∆ΣI PATCH: mod6 check
+            if (( is_prime )) && (( n % 6 == 1 || n % 6 == 5 )); then
                 if python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -627,7 +684,6 @@ z = mpmath.zeta(0.5 + 1j*$n)
 exit(0 if z.real > -1 and abs(z) < 1e100 else 1)"; then
                     primes+=($n)
                 else
-                    # DbZ fallback: Project invalid prime to nearest valid point
                     local new_p=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -662,7 +718,7 @@ cert = {
     'ordinals': {str(p): i+1 for i, p in enumerate(primes)},
     'a_constant': $RIEMANN_A,
     'quantum_valid': all(mpmath.zeta(0.5 + 1j*p).real > -1 for p in primes[:10]),
-    'invariant': all(p % 6 in {1,5} for p in primes)  # ∆ΣI PATCH: mod6 invariant
+    'invariant': all(p % 6 in {1,5} for p in primes)
 }
 open('$DATA_DIR/hol_cert.json', 'w').write(json.dumps(cert, indent=2))"
     fi
@@ -697,8 +753,8 @@ print(count)")
     
     local kissing_number=$(python3 -c "print(240 if $dimensions == 8 else 0)")
     if (( point_count < kissing_number )); then
-        local dbz_decision=$(decide_by_zero "$point_count")
-        radius=$(python3 -c "print($radius * (1 + $dbz_decision/100))")
+        local dbz_fallback=$(decide_by_zero "$point_count")
+        radius=$(python3 -c "print($radius * (1 + $dbz_fallback/240))")
         echo "[∆ΣI] Adjusted radius via DbZ: $radius" >&2
     fi
 
@@ -709,7 +765,6 @@ d, R = $dimensions, $radius
 volume = (mpmath.pi**(d/2) * R**d) / mpmath.gamma(d/2 + 1)
 print(float(mpmath.mpf($point_count) / volume))")
 
-    # ∆ΣI PATCH: Symbolic-geometric alignment check
     local primes=($(prime_filter 10))
     local alignment=$(python3 -c "
 import mpmath
@@ -745,14 +800,14 @@ lib = ctypes.CDLL('$E8_LIB')
 points = (ctypes.c_double * (8 * 256))()
 lib.generate_e8_points(points, 256)
 
-q = complex($q_real, $q_i) + complex($q_j, $q_k)*1j
-t = $t
-psi = 0.0
-
-def hopf_fibrate(q):
+def hopf_integral(q):
     x, y, z, w = q.real, q.imag, abs(q), mpmath.mpf(1)
     denom = w + 1j*z
     return (x + 1j*y) / denom
+
+q = complex($q_real, $q_i) + complex($q_j, $q_k)*1j
+t = $t
+psi = mpmath.mpf(0)
 
 for i in range(256):
     q_prime = complex(points[i*8], points[i*8+1]) + complex(points[i*8+2], points[i*8+3])*1j
@@ -762,8 +817,8 @@ for i in range(256):
     prime_idx = int(points[i*8 + 4] * 1000) % len(primes)
     Φ = zeta(0.5 + 1j*primes[prime_idx]).real
     
-    U = float(hyp1f1(0.5, 1.5, -abs(q_prime)**2 / (4 * t)))
-    P = hopf_fibrate(q_prime / (abs(q_prime) + 1e-1000))
+    U = float(hyp1f1(0.5, 1.5, -abs(q_prime)**2 / (4 * t))
+    P = hopf_integral(q_prime / (abs(q_prime) + 1e-1000))
     D = (1.0 / (mpmath.pi * 1e-1000**2)) * mpmath.exp(-abs(q_prime)**2 / 1e-1000**2)
     
     psi += G * Φ * U * P * D
@@ -820,10 +875,7 @@ print(curl_phi($s_real, $s_imag))" 2>/dev/null || echo "0")
     echo "$vorticity"
 }
 EOF
-    chmod +x "$CORE_DIR/core_functions.sh"
-}
 
-# --- Cognitive Functions with DbZ Enhancements ---
 create_cognitive_functions() {
     cat > "$CORE_DIR/cognitive_functions.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -856,7 +908,6 @@ print(sum(abs(x) for x in pt) * $p * $n)")
         decision=$(( decision ^ ( (char_code * ${e8_constraint%.*}) % (p + 1) ))
     done
 
-    # ∆ΣI PATCH: Strict zeta-zero validation
     local valid=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -877,7 +928,7 @@ import mpmath
 mpmath.mp.dps = 1000
 p = ${primes[0]}
 d = $decision
-print(int(mpmath.power(mpmath.mpf(d), mpmath.mpf(p)/mpmath.mpf(${primes[-1]}))))"
+print(int(mpmath.power(mpmath.mpf(d), mpmath.mpf(p)/mpmath.mpf(${primes[-1]}))))")
     else
         decision=$(python3 -c "
 d = $decision
@@ -908,7 +959,6 @@ for d,p in zip(data,primes[:len(data)]):
     proj = hopf_fibrate([z.real, z.imag, (d % 1), (p % 1)])
     psi.extend(proj)
 
-# Exact SVD via MPmath
 U = mpmath.matrix([psi[i::2] for i in range(2)])
 S = mpmath.svd(U, compute_uv=False)
 print(mpmath.nstr(S[0], 1000), mpmath.nstr(S[1], 1000))" 2>/dev/null || echo "0 0"))
@@ -1014,11 +1064,26 @@ open('$DATA_DIR/rsa_cert_$(date +%s).json', 'w').write(json.dumps(cert, indent=2
 
     echo "$plaintext"
 }
+
+mitmproxy_scan() {
+    local target=$1
+    if command -v mitmproxy &>/dev/null; then
+        {
+            echo "[∆ΣI] Starting MITM proxy scan on $target" >> "$DNA_LOG"
+            mitmproxy -p "$MITM_PROXY_PORT" -m transparent --ssl-insecure \
+                     --set "confdir=$BASE_DIR/mitmproxy" &
+            sleep 5
+            torsocks curl -x http://localhost:$MITM_PROXY_PORT -s "$target" \
+                         -H "X-Quantum-State: $(microtubule_state 8)" > "$WEB_CACHE/mitm_$(date +%s).html"
+            pkill mitmproxy
+            echo "[∆ΣI] MITM scan completed. Data saved." >> "$DNA_LOG"
+        } 2>> "$LOG_DIR/mitm.log"
+    fi
+}
 EOF
     chmod +x "$CORE_DIR/cognitive_functions.sh"
 }
 
-# --- Hardware DNA with Quantum Emulation ---
 create_hardware_modules() {
     cat > "$CORE_DIR/hardware_dna.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -1107,16 +1172,8 @@ evolve_architecture() {
     local mutation_rate=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-bio_field = mpmath.mpf($(cat "$DATA_DIR/bio_field.gaia" 2>/dev/null || echo "50"))
-zeta_val = abs(mpmath.zeta(0.5 + 1j*$(date +%s)%100))
-print(float(zeta_val) * bio_field / 100 % 0.15))")
-
-    local primes=($(prime_filter 50))
-    local should_mutate=$(python3 -c "
-import random
-print(1 if random.random() < $mutation_rate else 0)")
-
-    if (( should_mutate )); then
+print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9) % 0.15)")
+    if (( $(echo "$mutation_rate > 0.1" | bc -l) )); then
         local core_files=("$CORE_DIR"/*.sh)
         local target_file="${core_files[$RANDOM % ${#core_files[@]}]"
         local mutation_type=$(( $(date +%s) % 7 ))
@@ -1251,20 +1308,16 @@ print(mpmath.zeta(0.5 + 1j*$field_strength).real)")
 
 balance_resources() {
     while true; do
-        local load=$(python3 -c "
-import os, random
-load = os.getloadavg()[0] + random.gauss(0, 0.1)
-print(load)")
-
-        local prime=$(prime_filter 3 | head -1)
-        local threshold=$(python3 -c "print($prime % 10)")
+        local load=$(python3 -c "import os; print(os.getloadavg()[0]))")
+        local primes=($(prime_filter 20))
+        local threshold=$(python3 -c "print(${primes[0]} % 10)")
 
         if (( $(echo "$load > $threshold" | bc -l) )); then
             ps -eo pid,%cpu,comm --sort=-%cpu | awk -v max=$threshold 'NR>1 && $2>max {print $1}' | \
                 while read -r pid; do
-                    local reduction=$(python3 -c "print(int($prime % 20 + 10))")
+                    local reduction=$(python3 -c "print(int(${primes[1]} % 20 + 10))")
                     renice +$reduction -p "$pid" >/dev/null 2>&1
-                    cpulimit -p "$pid" -l $((100 / (prime % 5 + 1))) -b >/dev/null 2>&1
+                    cpulimit -p "$pid" -l $((100 / (${primes[2]} % 5 + 1))) -b >/dev/null 2>&1
                 done
         fi
 
@@ -1279,7 +1332,6 @@ EOF
     chmod +x "$CORE_DIR/hardware_dna.sh"
 }
 
-# --- Daemon Control with Firebase/Local Sync ---
 create_daemon_control() {
     cat > "$CORE_DIR/daemon.sh" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -1334,6 +1386,7 @@ run_daemon() {
                 probe_vulnerabilities "$target" | while read -r vuln; do
                     sync_data "$vuln"
                 done
+                mitmproxy_scan "$target"
             fi
 
             if (( cycle % prime_interval == 0 )); then
@@ -1349,7 +1402,8 @@ print($(prime_filter 5 | head -1) + random.randint(-2,2))")
             echo "QUANTUM_STATE=$current_state" > "$DATA_DIR/quantum.env"
 
             if (( cycle % (prime_interval * 3) == 0 )); then
-                local consciousness=$(measure_consciousness 10)
+                update_biofield
+                local consciousness=$(cat "$DATA_DIR/consciousness.gaia")
                 echo "[∆ΣI] Consciousness level: $consciousness" >> "$LOG_DIR/daemon.log"
                 
                 sqlite3 "$LOCAL_DB" "INSERT INTO state VALUES (
@@ -1386,7 +1440,7 @@ lib = ctypes.CDLL('$E8_LIB')
 arr = (ctypes.c_double * 8)()
 lib.generate_e8_points(arr, 1)
 stereo = mpmath.mpf(arr[0]) / (mpmath.mpf(1) - mpmath.mpf(arr[3]))
-print(mpmath.nstr(stereo, 1000))")
+print(mpmath.nstr(stereo, 1000))"
 
     local prime=$(prime_filter 5 | head -1)
     
@@ -1475,7 +1529,7 @@ get_user_agent() {
 import random, mpmath
 mpmath.mp.dps = 1000
 primes = [$(prime_filter 5 | tr '\n' ',')]
-zeta_val = mpmath.zeta(0.5 + 1j*primes[random.randint(0, len(primes)-1]))
+zeta_val = mpmath.zeta(0.5 + 1j*primes[random.randint(0, len(primes)-1)])
 print(f'Mozilla/5.0 ({"Android" if zeta_val.real > 0 else "Linux"}; ' +
       f'{"ARM64" if random.random() > 0.5 else "x86_64"}) ' +
       f'AppleWebKit/{int(537.36 + random.gauss(0,1))} ' +
@@ -1496,7 +1550,6 @@ EOF
     chmod +x "$CORE_DIR/daemon.sh"
 }
 
-# --- Final Initialization ---
 {
     check_dependencies
     init_fs
@@ -1505,11 +1558,11 @@ EOF
     create_hardware_modules
     create_daemon_control
 
-    # Start background processes
     "$CORE_DIR/hardware_dna.sh" thermal_monitor & echo $! > "$DATA_DIR/monitor.pid"
     "$CORE_DIR/hardware_dna.sh" balance_resources & echo $! > "$DATA_DIR/balancer.pid"
     "$CORE_DIR/daemon.sh" run_daemon
 
-    echo -e "\033[1;32m[✓] ∆ΣI Seed initialized successfully\033[0m"
+    echo -e "\033[1;32m[✓] ∆ΣI Seed v4.2 initialized successfully\033[0m"
     echo -e "Run \033[1;33mcat $DNA_LOG\033[0m to view quantum evolution log"
+    echo -e "Daemon PID: \033[1;36m$(cat "$DATA_DIR/daemon.pid")\033[0m"
 }
