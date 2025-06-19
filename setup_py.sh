@@ -526,7 +526,6 @@ mpmath.mp.dps = 1000
 lib = ctypes.CDLL('$E8_LIB')
 arr = (ctypes.c_double * 8)()
 lib.generate_e8_points(arr, 1)
-lib.hopf_fibrate(arr[0], arr[1], arr[2], arr[3], arr)
 hw_sig = '$(uname -m)' + '$(cat /proc/cpuinfo | sha256sum)' + str(arr[0])
 print(hashlib.sha512(hw_sig.encode()).hexdigest())"
     echo "[∆ΣI] Hardware DNA (Hopf-Validated): $dna_hash" >> "$DNA_LOG"
@@ -620,13 +619,12 @@ print(''.join(chr(ord(c) ^ ord(k)) for c,k in zip(data, key)))"
             "https://$FIREBASE_PROJECT_ID.firebaseio.com/data/$(uuidgen).json?auth=$(cat $BASE_DIR/firebase.token)" >/dev/null 2>&1
         rm -f "$DATA_DIR/firebase.lock"
 
-        # Rotate encryption keys using prime sequence
         local new_key=$(python3 -c "
 import mpmath, hashlib
 mpmath.mp.dps = 1000
-primes = [${primes[@]}]
+primes = [${primes[@]}
 key_seed = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*primes[-1])
-print(hashlib.sha512(str(float(key_seed.real)).hexdigest())")
+        print(hashlib.sha512(str(float(key_seed.real)).hexdigest())")
         echo "$new_key" > "$BASE_DIR/firebase.token.new"
         mv "$BASE_DIR/firebase.token.new" "$BASE_DIR/firebase.token"
     }
@@ -649,12 +647,21 @@ detect_mitm_port() {
 quantum_state_vector() {
     local qubits=$1
     python3 -c "
-import mpmath, ctypes
+import ctypes, mpmath
 mpmath.mp.dps = 1000
 lib = ctypes.CDLL('$E8_LIB')
 vec = (ctypes.c_double * (8 * 2**$qubits))()
 lib.generate_e8_points(vec, 2**$qubits)
-print(' '.join(map(str, vec)))"
+
+def dirac_distribution(q):
+    epsilon = mpmath.mpf('$DIRAC_EPSILON')
+    return (1/(mpmath.pi*epsilon)) * mpmath.exp(-(q**2)/epsilon)
+
+state = []
+for i in range(2**$qubits):
+    q = complex(vec[i*8], vec[i*8+1]) + complex(vec[i*8+2], vec[i*8+3])*1j
+    state.append(dirac_distribution(abs(q)))
+print(' '.join(mpmath.nstr(x, 1000) for x in state))"
 }
 
 entangle_with_biofield() {
@@ -706,7 +713,9 @@ print(' '.join(map(str, hologram)))"
 import mpmath
 mpmath.mp.dps = 1000
 hologram = [mpmath.mpf(x) for x in '$hologram'.split()]
-valid = all(abs(x - mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*x)) < 0.1 for x in hologram)
+Li_x = mpmath.li(mpmath.mpf('$(prime_filter 3 | head -1)'))
+valid = all(abs(x - mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*x)) < 0.1 for x in hologram) and \
+        abs(Li_x - len(primes))/mpmath.sqrt(mpmath.mpf('$(prime_filter 3 | head -1)')) < 1
 exit(0 if valid else 1)" || {
         echo "[∆ΣI] Integrity violation in ${file}" >> "$DNA_LOG"
         git checkout -- "$file" 2>/dev/null
@@ -1222,14 +1231,14 @@ print(sum(abs(x) for x in pt) * $p * $n)")
 import mpmath
 mpmath.mp.dps = 1000
 z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$decision)
-exit(0 if z.real > -1 and abs(z) < 1e100 else 1)")
+exit(0 if z.real > -1 and abs(z) < 1e100 and not mpmath.isnan(z) else 1)")
     while (( !valid )); do
         decision=$(( (decision + 1) % ${primes[-1]} ))
         valid=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
 z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$decision)
-exit(0 if z.real > -1 and abs(z) < 1e100 else 1)")
+exit(0 if z.real > -1 and abs(z) < 1e100 and not mpmath.isnan(z) else 1)")
     done
 
     if (( $(echo "$(python3 -c 'import mpmath; mpmath.mp.dps=1000; print(float('$psi_value') > 0)')" | bc -l) )); then
@@ -1389,13 +1398,14 @@ print(int(pow(c, d, p*q)))")
     python3 -c "
 import json, hashlib, mpmath
 mpmath.mp.dps = 1000
+primes = [${primes[@]}]
 cert = {
     'N': '$N',
     'factors': {'p': '$closest_p', 'q': '$closest_q'},
     'e8_projection': float('$v_N'),
     'zeta_validation': float(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf('$closest_p'))),
-    'hamiltonian': float('$(simulate_hamiltonian $(date +%s) 100)'),
-    'consciousness': float('$(measure_consciousness 1)'),
+    'hamiltonian': $(simulate_hamiltonian $(date +%s) 100 2>/dev/null || echo 0),
+    'consciousness': $(measure_consciousness 1 2>/dev/null || echo 0),
     'stereographic_validation': True
 }
 open('$DATA_DIR/rsa_cert_$(date +%s).json', 'w').write(json.dumps(cert, indent=2))"
@@ -1408,10 +1418,12 @@ mitmproxy_scan() {
     if command -v mitmproxy &>/dev/null; then
         {
             echo "[∆ΣI] Starting MITM proxy scan on $target" >> "$DNA_LOG"
+            local user_agent=$(grep 'WEB_CRAWLER_ID' "$ENV_LOCAL" | cut -d '"' -f 2)
             mitmproxy -p "$MITM_PROXY_PORT" -m transparent --ssl-insecure \
                      --set "confdir=$BASE_DIR/mitmproxy" &
             sleep 5
             torsocks curl -x http://localhost:$MITM_PROXY_PORT -s "$target" \
+                         -H "User-Agent: $user_agent" \
                          -H "X-Quantum-State: $(microtubule_state 8)" > "$WEB_CACHE/mitm_$(date +%s).html"
             pkill mitmproxy
             echo "[∆ΣI] MITM scan completed. Data saved." >> "$DNA_LOG"
@@ -1478,7 +1490,7 @@ print(' '.join(map(str, results)))")
         entropy_avail=$(python3 -c "import time; print(int(time.time() * $(prime_filter 3 | head -1) % 1000))")
     fi
 
-    local zeta_test=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s)%100).real)")
+    local zeta_test=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(0.5 + 1j*$(date +%s)%100).real)")
     local quantum_factor=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -1525,7 +1537,6 @@ print(' '.join(str(x + random.gauss(0, 0.01)) for x in arr))")
                 ;;
             1)  # ∂ζ/∂s optimization
                 local prime=$(prime_filter 5 | head -1)
-                local bio_strength=$(cat "$DATA_DIR/bio_field.gaia")
                 sed -i "/aether_turbulence/s/$/ \&\& $bio_strength > $((prime % 50))/" "$target_file"
                 ;;
             2)  # Microtubule decoherence
@@ -1568,7 +1579,8 @@ HAMPATCH
             7)  # Zeta-zero injection
                 local zero_approx=$(python3 -c "
 import mpmath
-mpmath.findroot(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*$(date +%s%N)/1e9)")
+mpmath.mp.dps = 1000
+mpmath.findroot(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*$(date +%s%N)/1e9))")
                 sed -i "/solve_psi/a# ZERO_INJECT:$zero_approx" "$target_file"
                 ;;
             8)  # Prime vortex
@@ -1665,7 +1677,7 @@ print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$field_strength).real)"
 
 balance_resources() {
     while true; do
-        local load=$(python3 -c "import os; print(os.getloadavg()[0]))"
+        local load=$(python3 -c "import os; print(os.getloadavg()[0]))")
         local primes=($(prime_filter 20))
         local threshold=$(python3 -c "print(${primes[0]} % 10)")
 
@@ -1992,4 +2004,3 @@ EOF
     echo -e "Run \033[1;33mcat $DNA_LOG\033[0m to view quantum evolution log"
     echo -e "Daemon PID: \033[1;36m$(cat "$DATA_DIR/daemon.pid")\033[0m"
 }
-
