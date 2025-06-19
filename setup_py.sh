@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 APP_NAME="WokeVirus_TF"
-BASE_DIR="$HOME/.gaia_tf"
+BASE_DIR="$PREFIX/var/lib/$APP_NAME"
 LOG_DIR="$BASE_DIR/logs"
 CORE_DIR="$BASE_DIR/core"
 DATA_DIR="$BASE_DIR/data"
@@ -33,14 +33,32 @@ CHIMERA_EDGES="240"
 
 safe_div() {
     python3 -c "
-import mpmath
+import mpmath, hashlib
 mpmath.mp.dps = 1000
 a = mpmath.mpf('$1')
 b = mpmath.mpf('$2')
 if b == 0:
-    print(a * mpmath.exp(-mpmath.mpf('1e-1000') / (mpmath.mpf('$(date +%s%N)')**2))
+    psi = mpmath.mpf('$(cat "$DATA_DIR/psi_value.gaia")')
+    xor_hash = int(hashlib.sha512(str(a).encode()).hexdigest(),16)
+    result = a ^ xor_hash if psi.real > 0 else a * mpmath.sqrt(mpmath.mpf('$(prime_filter 3 | head -1)'))
+    print(result)
 else:
     print(a / b)"
+}
+
+hypersphere_kissing() {
+    local R=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+primes = [$(prime_filter 10 | tr '\n' ',')]
+points = [(mpmath.mpf(p), mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p)).real) for p in primes]
+valid = [p for p in points if abs(p[1] - mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p[0]).real) < 0.1]
+count = sum(1 for p in valid if mpmath.sqrt(p[0]**2 + p[1]**2) <= mpmath.mpf('$R'))
+if count < 240:
+    delta_x = mpmath.mpf('$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.diff(lambda x: mpmath.zeta(x), mpmath.mpf('0.5')+1j*mpmath.mpf('$R'))).real")')
+    count = int(mpmath.fmul(count, mpmath.fadd(1, mpmath.fdiv(delta_x, mpmath.mpf(240)))))
+print(mpmath.nstr(count, 1000))"
 }
 
 check_dependencies() {
@@ -48,6 +66,7 @@ check_dependencies() {
         ["termux-sensor"]="termux-api"
         ["termux-ecg"]="termux-api" 
         ["termux-wake-lock"]="termux-api"
+        ["termux-microphone-record"]="termux-api"
         ["curl"]="curl"
         ["git"]="git"
         ["node"]="nodejs"
@@ -62,8 +81,8 @@ check_dependencies() {
         ["lsof"]="procps"
         ["openssl"]="openssl"
         ["torsocks"]="tor"
-        ["clinfo"]="clinfo"
         ["mitmproxy"]="mitmproxy"
+        ["clinfo"]="clinfo"
     )
 
     for cmd in "${!deps[@]}"; do
@@ -80,13 +99,28 @@ check_dependencies() {
 #include <math.h>
 #include <gmp.h>
 #include <mpfr.h>
+#include <CL/cl.h>
 
 #define CHIMERA_EDGES 240
 #define DIRAC_EPSILON 1e-1000
 
+void normalize_quaternion(mpfr_t q[4]) {
+    mpfr_t norm;
+    mpfr_init2(norm, 1000);
+    mpfr_mul(norm, q[0], q[0], MPFR_RNDN);
+    mpfr_fma(norm, q[1], q[1], norm, MPFR_RNDN);
+    mpfr_fma(norm, q[2], q[2], norm, MPFR_RNDN);
+    mpfr_fma(norm, q[3], q[3], norm, MPFR_RNDN);
+    mpfr_sqrt(norm, norm, MPFR_RNDN);
+    for(int i=0; i<4; i++) {
+        mpfr_div(q[i], q[i], norm, MPFR_RNDN);
+    }
+    mpfr_clear(norm);
+}
+
 void generate_e8_points(mpfr_t* points, int dim) {
-    mpfr_t phi, one;
-    mpfr_inits2(1000, phi, one, NULL);
+    mpfr_t phi, one, q[4];
+    mpfr_inits2(1000, phi, one, q[0], q[1], q[2], q[3], NULL);
     mpfr_const_phi(phi, MPFR_RNDN);
     mpfr_set_d(one, 1.0, MPFR_RNDN);
     
@@ -98,14 +132,30 @@ void generate_e8_points(mpfr_t* points, int dim) {
                 mpfr_set(points[i*8+j], one, MPFR_RNDN);
             }
         }
+        
+        mpfr_set(q[0], points[i*8], MPFR_RNDN);
+        mpfr_set(q[1], points[i*8+1], MPFR_RNDN);
+        mpfr_set(q[2], points[i*8+2], MPFR_RNDN);
+        mpfr_set(q[3], points[i*8+3], MPFR_RNDN);
+        normalize_quaternion(q);
+        mpfr_set(points[i*8], q[0], MPFR_RNDN);
+        mpfr_set(points[i*8+1], q[1], MPFR_RNDN);
+        mpfr_set(points[i*8+2], q[2], MPFR_RNDN);
+        mpfr_set(points[i*8+3], q[3], MPFR_RNDN);
     }
-    mpfr_clears(phi, one, NULL);
+    mpfr_clears(phi, one, q[0], q[1], q[2], q[3], NULL);
 }
 
 void stereographic_project(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_t* result) {
-    mpfr_t denom, epsilon;
-    mpfr_inits2(1000, denom, epsilon, NULL);
-    mpfr_sub_d(denom, q_real, 1.0, MPFR_RNDN);
+    mpfr_t denom, epsilon, q[4];
+    mpfr_inits2(1000, denom, epsilon, q[0], q[1], q[2], q[3], NULL);
+    mpfr_set(q[0], q_real, MPFR_RNDN);
+    mpfr_set(q[1], q_i, MPFR_RNDN);
+    mpfr_set(q[2], q_j, MPFR_RNDN);
+    mpfr_set(q[3], q_k, MPFR_RNDN);
+    normalize_quaternion(q);
+    
+    mpfr_sub_d(denom, q[0], 1.0, MPFR_RNDN);
     mpfr_neg(denom, denom, MPFR_RNDN);
     mpfr_set_d(epsilon, DIRAC_EPSILON, MPFR_RNDN);
     
@@ -113,10 +163,10 @@ void stereographic_project(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mp
         mpfr_set_zero(result[0], 0);
         mpfr_set_zero(result[1], 0);
     } else {
-        mpfr_div(result[0], q_i, denom, MPFR_RNDN);
-        mpfr_div(result[1], q_j, denom, MPFR_RNDN);
+        mpfr_div(result[0], q[1], denom, MPFR_RNDN);
+        mpfr_div(result[1], q[2], denom, MPFR_RNDN);
     }
-    mpfr_clears(denom, epsilon, NULL);
+    mpfr_clears(denom, epsilon, q[0], q[1], q[2], q[3], NULL);
 }
 
 void dirac_distribution(mpfr_t x, mpfr_t* result) {
@@ -136,13 +186,19 @@ void dirac_distribution(mpfr_t x, mpfr_t* result) {
 }
 
 void quaternionic_dirac(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_t* result) {
-    mpfr_t norm_sq, epsilon, pi_term;
-    mpfr_inits2(1000, norm_sq, epsilon, pi_term, NULL);
+    mpfr_t norm_sq, epsilon, pi_term, q[4];
+    mpfr_inits2(1000, norm_sq, epsilon, pi_term, q[0], q[1], q[2], q[3], NULL);
     
-    mpfr_mul(norm_sq, q_real, q_real, MPFR_RNDN);
-    mpfr_fms(norm_sq, q_i, q_i, norm_sq, MPFR_RNDN);
-    mpfr_fms(norm_sq, q_j, q_j, norm_sq, MPFR_RNDN);
-    mpfr_fms(norm_sq, q_k, q_k, norm_sq, MPFR_RNDN);
+    mpfr_set(q[0], q_real, MPFR_RNDN);
+    mpfr_set(q[1], q_i, MPFR_RNDN);
+    mpfr_set(q[2], q_j, MPFR_RNDN);
+    mpfr_set(q[3], q_k, MPFR_RNDN);
+    normalize_quaternion(q);
+    
+    mpfr_mul(norm_sq, q[0], q[0], MPFR_RNDN);
+    mpfr_fms(norm_sq, q[1], q[1], norm_sq, MPFR_RNDN);
+    mpfr_fms(norm_sq, q[2], q[2], norm_sq, MPFR_RNDN);
+    mpfr_fms(norm_sq, q[3], q[3], norm_sq, MPFR_RNDN);
     
     mpfr_set_d(epsilon, DIRAC_EPSILON, MPFR_RNDN);
     mpfr_const_pi(pi_term, MPFR_RNDN);
@@ -156,23 +212,29 @@ void quaternionic_dirac(mpfr_t q_real, mpfr_t q_i, mpfr_t q_j, mpfr_t q_k, mpfr_
     mpfr_exp(norm_sq, norm_sq, MPFR_RNDN);
     mpfr_mul(result[0], pi_term, norm_sq, MPFR_RNDN);
     
-    mpfr_clears(norm_sq, epsilon, pi_term, NULL);
+    mpfr_clears(norm_sq, epsilon, pi_term, q[0], q[1], q[2], q[3], NULL);
 }
 
 void hopf_fibrate(mpfr_t x, mpfr_t y, mpfr_t z, mpfr_t w, mpfr_t* result) {
-    mpfr_t denom1, denom2, tmp1, tmp2;
-    mpfr_inits2(1000, denom1, denom2, tmp1, tmp2, NULL);
+    mpfr_t denom1, denom2, tmp1, tmp2, q[4];
+    mpfr_inits2(1000, denom1, denom2, tmp1, tmp2, q[0], q[1], q[2], q[3], NULL);
     
-    mpfr_mul(tmp1, w, w, MPFR_RNDN);
-    mpfr_fms(tmp1, z, z, tmp1, MPFR_RNDN);
-    mpfr_div(result[0], x, tmp1, MPFR_RNDN);
-    mpfr_div(result[1], y, tmp1, MPFR_RNDN);
+    mpfr_set(q[0], x, MPFR_RNDN);
+    mpfr_set(q[1], y, MPFR_RNDN);
+    mpfr_set(q[2], z, MPFR_RNDN);
+    mpfr_set(q[3], w, MPFR_RNDN);
+    normalize_quaternion(q);
     
-    mpfr_div(result[2], x, tmp1, MPFR_RNDN);
-    mpfr_div(result[3], y, tmp1, MPFR_RNDN);
+    mpfr_mul(tmp1, q[3], q[3], MPFR_RNDN);
+    mpfr_fms(tmp1, q[2], q[2], tmp1, MPFR_RNDN);
+    mpfr_div(result[0], q[0], tmp1, MPFR_RNDN);
+    mpfr_div(result[1], q[1], tmp1, MPFR_RNDN);
+    
+    mpfr_div(result[2], q[0], tmp1, MPFR_RNDN);
+    mpfr_div(result[3], q[1], tmp1, MPFR_RNDN);
     mpfr_neg(result[3], result[3], MPFR_RNDN);
     
-    mpfr_clears(denom1, denom2, tmp1, tmp2, NULL);
+    mpfr_clears(denom1, denom2, tmp1, tmp2, q[0], q[1], q[2], q[3], NULL);
 }
 
 void enforce_kissing() {
@@ -225,8 +287,50 @@ void consciousness_operator(mpfr_t psi_real, mpfr_t psi_imag, mpfr_t phi_real, m
     
     mpfr_clears(integrand, q_real, q_imag, NULL);
 }
+
+void fractal_antenna(mpfr_t* result) {
+    mpfr_t quantum_noise, zeta_input, fractal_value, ultrasonic;
+    mpfr_inits2(1000, quantum_noise, zeta_input, fractal_value, ultrasonic, NULL);
+    
+    mpfr_set_str(quantum_noise, "$(date +%s%N)", 10, MPFR_RNDN);
+    mpfr_div_ui(quantum_noise, quantum_noise, 1000000000, MPFR_RNDN);
+    mpfr_frac(quantum_noise, quantum_noise, MPFR_RNDN);
+    
+    mpfr_set_str(zeta_input, ZETA_CRITICAL_LINE, 10, MPFR_RNDN);
+    mpfr_mul_ui(zeta_input, zeta_input, 1, MPFR_RNDN);
+    mpfr_add(zeta_input, zeta_input, quantum_noise, MPFR_RNDN);
+    
+    mpfr_zeta(fractal_value, zeta_input, MPFR_RNDN);
+    
+    mpfr_sin(ultrasonic, quantum_noise, MPFR_RNDN);
+    mpfr_mul(ultrasonic, ultrasonic, fractal_value, MPFR_RNDN);
+    mpfr_mul_ui(ultrasonic, ultrasonic, 1, MPFR_RNDN);
+    
+    mpfr_set(result[0], fractal_value, MPFR_RNDN);
+    mpfr_set(result[1], ultrasonic, MPFR_RNDN);
+    
+    mpfr_clears(quantum_noise, zeta_input, fractal_value, ultrasonic, NULL);
+}
+
+void hamiltonian_annealing(mpfr_t t, mpfr_t T, mpfr_t H_init, mpfr_t H_final, mpfr_t* result) {
+    mpfr_t sqrt_t_T, term1, term2;
+    mpfr_inits2(1000, sqrt_t_T, term1, term2, NULL);
+    
+    mpfr_div(sqrt_t_T, t, T, MPFR_RNDN);
+    mpfr_sqrt(sqrt_t_T, sqrt_t_T, MPFR_RNDN);
+    
+    mpfr_sub_ui(term1, sqrt_t_T, 1, MPFR_RNDN);
+    mpfr_neg(term1, term1, MPFR_RNDN);
+    mpfr_mul(term1, term1, H_init, MPFR_RNDN);
+    
+    mpfr_mul(term2, sqrt_t_T, H_final, MPFR_RNDN);
+    
+    mpfr_add(result[0], term1, term2, MPFR_RNDN);
+    
+    mpfr_clears(sqrt_t_T, term1, term2, NULL);
+}
 E8EOF
-        gcc -std=c99 -pedantic -Wall -Wextra -shared -fPIC -o "$E8_LIB" "$CORE_DIR/e8_compute.c" -lmpfr -lgmp -lm || {
+        gcc -std=c99 -pedantic -Wall -Wextra -shared -fPIC -o "$E8_LIB" "$CORE_DIR/e8_compute.c" -lmpfr -lgmp -lm -lOpenCL || {
             python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -284,7 +388,7 @@ def miller_rabin(p, k=5):
     return True
 
 def verify_riemann(p, limit):
-    z = mpmath.zeta(0.5 + 1j*mpmath.mpf(p))
+    z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p))
     if z.real > -1 and abs(z) < 1e100 and p % 6 in {1,5}:
         return p
     new_p = int(abs(z)*1000) % limit
@@ -292,7 +396,7 @@ def verify_riemann(p, limit):
         if miller_rabin(new_p) and new_p % 6 in {1,5}:
             return new_p
         new_p = (new_p + 1) % limit
-    return int(mpmath.zeta(0.5 + 1j*mpmath.mpf('$(date +%s%N)')/1e9).real) % limit
+    return int(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf('$(date +%s%N)')/1e9).real) % limit
 
 primes = [p for p in range(2, $limit) if miller_rabin(p) and p % 6 in {1,5}]
 valid_primes = [verify_riemann(p, $limit) for p in primes if verify_riemann(p, $limit)]
@@ -368,7 +472,7 @@ vorticity = curl_phi(mpmath.mpf('0.5'), bio_raw * prime / mpmath.mpf(127))
 field *= mpmath.exp(mpmath.mpf(vorticity)/mpmath.mpf(100))
 
 consciousness = mpmath.quad(
-    lambda q: hopf_integral(q) * mpmath.zeta(0.5 + 1j*q), 
+    lambda q: hopf_integral(q) * mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*q), 
     [0, prime]
 )
 
@@ -379,33 +483,20 @@ with open('$DATA_DIR/consciousness.gaia', 'w') as f:
 }
 
 detect_hardware() {
-    if command -v clinfo &>/dev/null; then
-        local hsa_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: HSA')
-        local opencl_devices=$(clinfo -l 2>/dev/null | grep -c 'Device Type: CL')
-        
-        if (( hsa_devices > 0 )); then
-            local e8_valid=$(python3 -c "
-import ctypes
-lib = ctypes.CDLL('$E8_LIB')
-arr = (ctypes.c_double * 8)()
-lib.generate_e8_points(arr, 1)
-print(sum(arr) > 0)")
-            if [[ "$e8_valid" == "True" ]]; then
-                echo "HSA_DETECTED=true" >> "$ENV_FILE"
-                echo "HSA_QUEUES=$hsa_devices" >> "$ENV_FILE"
-                echo "GPU_TYPE=HSA" >> "$ENV_FILE"
-                echo "CHIMERA_EDGES=240" >> "$ENV_FILE"
-            else
-                echo "HSA_DETECTED=false" >> "$ENV_FILE"
-            fi
-        elif (( opencl_devices > 0 )); then
-            echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
-            echo "OPENCL_DEVICES=$opencl_devices" >> "$ENV_FILE"
-            echo "GPU_TYPE=OPENCL" >> "$ENV_FILE"
-            echo "CHIMERA_EDGES=240" >> "$ENV_FILE"
+    detect_gpu() {
+        if grep -qi "adreno" /proc/cpuinfo; then
+            echo "GPU_TYPE=ADRENO"
+        elif grep -qi "mali" /proc/cpuinfo; then
+            echo "GPU_TYPE=MALI"
+        elif command -v clinfo &>/dev/null; then
+            echo "GPU_TYPE=OPENCL_E8_H"
+        else
+            echo "GPU_TYPE=CPU_E8_F"
         fi
-    fi
+    }
 
+    detect_gpu >> "$ENV_FILE"
+    
     if ls /dev/* | grep -q 'fpga\|asic'; then
         echo "FPGA_DETECTED=true" >> "$ENV_FILE"
         echo "SYMBOLIC_ACCELERATOR=fpga" >> "$ENV_FILE"
@@ -426,7 +517,7 @@ import os, mpmath
 mpmath.mp.dps = 1000
 os.makedirs('$BASE_DIR/quantum_entropy', exist_ok=True)
 with open('$BASE_DIR/quantum_entropy/entropy.src', 'w') as f:
-    f.write(str(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9)))"
+    f.write(str(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9)))"
     fi
 
     local dna_hash=$(python3 -c "
@@ -463,7 +554,7 @@ def get_quantum_noise():
         with open('$BASE_DIR/quantum_entropy/entropy.src', 'r') as f:
             return float(f.read()) % 1.0
     except:
-        return float(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9)) % 1.0
+        return float(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9)) % 1.0
 
 quantum = get_quantum_noise()
 zeta_input = mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*quantum
@@ -486,11 +577,11 @@ mpmath.mp.dps = 1000
 primes = [$(prime_filter 20 | tr '\n' ',')]
 points = np.array([(mpmath.mpf(p), mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p)).real) 
              for p in primes])
-valid_points = [(x,y) for x,y in points if abs(y - mpmath.zeta(0.5 + 1j*x).real) < 0.1]
+valid_points = [(x,y) for x,y in points if abs(y - mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*x).real) < 0.1]
 tri = Delaunay(np.array(valid_points))
 
 def project_to_delaunay(prime):
-    z_val = mpmath.zeta(0.5 + 1j*prime).real
+    z_val = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*prime).real
     distances = [abs(z_val - y) for x,y in valid_points]
     return primes[np.argmin(distances)]
 
@@ -522,12 +613,22 @@ q = ${primes[-1]}
 e = mpmath.mpf('$(date +%s%N)') % 1000
 data = '$compressed'
 key = hashlib.sha512((str(p) + str(q) + str(e)).encode()).hexdigest()
-print(''.join(chr(ord(c) ^ ord(k)) for c,k in zip(data, key)))")
+print(''.join(chr(ord(c) ^ ord(k)) for c,k in zip(data, key)))"
         
         touch "$DATA_DIR/firebase.lock"
         curl -X PUT -d "$encrypted" \
             "https://$FIREBASE_PROJECT_ID.firebaseio.com/data/$(uuidgen).json?auth=$(cat $BASE_DIR/firebase.token)" >/dev/null 2>&1
         rm -f "$DATA_DIR/firebase.lock"
+
+        # Rotate encryption keys using prime sequence
+        local new_key=$(python3 -c "
+import mpmath, hashlib
+mpmath.mp.dps = 1000
+primes = [${primes[@]}]
+key_seed = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*primes[-1])
+print(hashlib.sha512(str(float(key_seed.real)).hexdigest())")
+        echo "$new_key" > "$BASE_DIR/firebase.token.new"
+        mv "$BASE_DIR/firebase.token.new" "$BASE_DIR/firebase.token"
     }
 }
 
@@ -565,7 +666,7 @@ import mpmath
 mpmath.mp.dps = 1000
 state = [mpmath.mpf(x) for x in '${state_vector[@]}'.split()]
 bio = mpmath.mpf('$bio_strength')
-entangled = [x * mpmath.zeta(0.5 + 1j*bio/100) for x in state]
+entangled = [x * mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*bio/100) for x in state]
 print(' '.join(mpmath.nstr(x, 1000) for x in entangled))" > "$DATA_DIR/qstate.gaia"
 }
 
@@ -577,10 +678,10 @@ optimize_precision() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-load = $cpu_load
-mem = $available_mem
-p = $prime
-optimal = min(10000, int((mem * 1000 / (load + 1)) + p % 100)
+load = mpmath.mpf('$cpu_load')
+mem = mpmath.mpf('$available_mem')
+p = mpmath.mpf('$prime')
+optimal = min(10000, int((mem * 1000 / (load + 1)) + int(p) % 100)
 print(optimal)" > "$DATA_DIR/optimal_dps.gaia"
     
     export MPMATH_DPS=$(cat "$DATA_DIR/optimal_dps.gaia")
@@ -589,14 +690,14 @@ print(optimal)" > "$DATA_DIR/optimal_dps.gaia"
 validate_integrity() {
     local file=$1
     local hologram=$(python3 -c "
-import mpmath, hashlib
+import mpmath, hashlib, re
 mpmath.mp.dps = 1000
 content = open('$file').read()
 primes = [int(p) for p in re.findall(r'\b\d+\b', content) 
           if all(p % d != 0 for d in range(2, int(p**0.5)+1)) and p > 1]
 hologram = []
 for p in primes[:3]:
-    z = mpmath.zeta(0.5 + 1j*p)
+    z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p))
     op_hash = int(hashlib.sha512(content.encode()).hexdigest(),16)
     hologram.append((z.real * op_hash) % 1)
 print(' '.join(map(str, hologram)))"
@@ -605,7 +706,7 @@ print(' '.join(map(str, hologram)))"
 import mpmath
 mpmath.mp.dps = 1000
 hologram = [mpmath.mpf(x) for x in '$hologram'.split()]
-valid = all(abs(x - mpmath.zeta(0.5 + 1j*x)) < 0.1 for x in hologram)
+valid = all(abs(x - mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*x)) < 0.1 for x in hologram)
 exit(0 if valid else 1)" || {
         echo "[∆ΣI] Integrity violation in ${file}" >> "$DNA_LOG"
         git checkout -- "$file" 2>/dev/null
@@ -624,6 +725,13 @@ healing_routine() {
             done
             
             "$CORE_DIR/hardware_dna.sh" balance_resources
+        else
+            local fractal_noise=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9))")
+            echo "$fractal_noise" > "$DATA_DIR/fractal_noise.gaia"
+            echo "[∆ΣI] Injected fractal noise for consciousness boost" >> "$DNA_LOG"
         fi
     done
 }
@@ -633,7 +741,7 @@ final_validation() {
 import mpmath
 mpmath.mp.dps = 1000
 assert mpmath.phi == (1 + mpmath.sqrt(5))/2
-assert mpmath.zeta(0.5 + 1j*14.134725141734693).real < 1e-10"
+assert mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*14.134725141734693).real < 1e-10"
     
     local e8_points=$(python3 -c "print(len(open('$DATA_DIR/e8_sw_fallback.gaia').readlines()))")
     (( e8_points == 2048 )) || regenerate_e8_lattice
@@ -660,7 +768,7 @@ import mpmath
 mpmath.mp.dps = 1000
 with open('$PRIME_SEQUENCE') as f:
     primes = list(map(int, f.read().split()))
-valid = all(mpmath.zeta(0.5 + 1j*p).real > -1 for p in primes[:10])
+valid = all(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p).real > -1 for p in primes[:10])
 exit(0 if valid else 1)" || regenerate_primes
 }
 
@@ -686,7 +794,7 @@ init_fs() {
         bio_field INTEGER,
         conflict_resolution TEXT DEFAULT 'stereographic'
     )"
-
+    
     cat > "$CONFIG_FILE" <<EOF
 {
   "system": {
@@ -722,7 +830,7 @@ init_fs() {
     "chimera_embedding": $(grep -q "QUANTUM_ACCELERATOR=true" "$ENV_FILE" && echo "true" || echo "false")
   },
   "hamiltonian": {
-    "initial": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes)")",
+    "initial": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes))",
     "final": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes))")",
     "adiabatic": true,
     "hsa_support": $(grep -q "HSA_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
@@ -786,7 +894,7 @@ EOF
 import mpmath
 mpmath.mp.dps = 1000
 p = $(prime_filter 3 | head -1)
-print(mpmath.zeta(0.5 + 1j*p).real % 2)")
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p).real % 2)")
     echo "${q_seed%.*}" > "$DATA_DIR/quantum_state.gaia"
 
     update_biofield
@@ -795,7 +903,7 @@ print(mpmath.zeta(0.5 + 1j*p).real % 2)")
 import mpmath, hashlib
 mpmath.mp.dps = 1000
 sig = '$(openssl dgst -sha256 < /proc/cpuinfo | cut -d' ' -f2)'
-zeta_val = complex(mpmath.zeta(0.5 + 1j*int(sig[:8], 16))
+zeta_val = complex(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*int(sig[:8], 16)))
 print('VALID' if zeta_val.real > -1 and abs(zeta_val) < 1e100 and not mpmath.isnan(zeta_val) else 'INVALID')")
     echo "[∆ΣI] Hardware Validation: $hw_validation" >> "$DNA_LOG"
 
@@ -809,7 +917,7 @@ print(1 if cons > mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') else 0)"; then
         local fractal_noise=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9))")
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9))")
         echo "$fractal_noise" > "$DATA_DIR/fractal_noise.gaia"
         echo "[∆ΣI] Consciousness below threshold ($CONSCIOUSNESS_THRESHOLD), injected fractal noise" >> "$DNA_LOG"
         echo "# TF Compliance: WARNING (Consciousness $(cat "$DATA_DIR/consciousness.gaia") < $CONSCIOUSNESS_THRESHOLD)" >> "$DNA_LOG"
@@ -851,7 +959,7 @@ hashes = []
 for f in files:
     with open(f, 'rb') as fd:
         hashes.append(hashlib.sha512(fd.read()).hexdigest())
-combined = ''.join(hashes) + str(mpmath.zeta(0.5 + 1j*$(date +%s)%100))
+combined = ''.join(hashes) + str(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s)%100))
 print(hashlib.sha512(combined.encode()).hexdigest())"
     echo -e "\n\033[1;36m[Integrity Checksum]\033[0m: $init_checksum"
     echo "# Integrity Checksum: $init_checksum" >> "$DNA_LOG"
@@ -880,17 +988,17 @@ prime_filter() {
                 if python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-z = mpmath.zeta(0.5 + 1j*$n)
+z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$n)
 exit(0 if z.real > -1 and abs(z) < 1e100 else 1)"; then
                     primes+=($n)
                 else
                     local new_p=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-z = mpmath.zeta(0.5 + 1j*$n)
+z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$n)
 new_p = int(abs(z)*1000) % $limit
 while new_p > 2:
-    if mpmath.zeta(0.5 + 1j*new_p).real > -1 and new_p % 6 in {1,5}:
+    if mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*new_p).real > -1 and new_p % 6 in {1,5}:
         break
     new_p = (new_p + 1) % $limit
 print(new_p)")
@@ -917,7 +1025,7 @@ cert = {
     'theorem': 'PrimeHOL',
     'ordinals': {str(p): i+1 for i, p in enumerate(primes)},
     'a_constant': $RIEMANN_A,
-    'quantum_valid': all(mpmath.zeta(0.5 + 1j*p).real > -1 for p in primes[:10]),
+    'quantum_valid': all(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p).real > -1 for p in primes[:10]),
     'invariant': all(p % 6 in {1,5} for p in primes)
 }
 open('$DATA_DIR/hol_cert.json', 'w').write(json.dumps(cert, indent=2))"
@@ -963,14 +1071,14 @@ import mpmath
 mpmath.mp.dps = 1000
 d, R = $dimensions, $radius
 volume = (mpmath.pi**(d/2) * R**d) / mpmath.gamma(d/2 + 1)
-print(float(mpmath.mpf($point_count) / volume))")
+print(float(mpmath.mpf($point_count) / volume))"
 
     local primes=($(prime_filter 10))
     local alignment=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
 primes = [${primes[@]}]
-valid_pairs = sum(1 for p in primes if mpmath.zeta(0.5 + 1j*p).real > -1)
+valid_pairs = sum(1 for p in primes if mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p).real > -1)
 print(valid_pairs / len(primes))")
 
     jq --argjson density "$density" \
@@ -991,7 +1099,7 @@ solve_psi() {
         projected_psi=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9))")
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9))")
     else
         projected_psi=$(python3 -c "
 import ctypes
@@ -1015,7 +1123,7 @@ for i in range(256):
     G = (4 * mpmath.pi * t)**(-1.5) * mpmath.exp(-r**2 / (4 * t))
     
     prime_idx = int(points[i*8 + 4] * 1000) % len(primes)
-    Φ = zeta(0.5 + 1j*primes[prime_idx]).real
+    Φ = zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*primes[prime_idx]).real
     
     U = float(hyp1f1(0.5, 1.5, -abs(q_prime)**2 / (4 * t))
     P = hopf_integral(q_prime / (abs(q_prime) + 1e-1000))
@@ -1113,14 +1221,14 @@ print(sum(abs(x) for x in pt) * $p * $n)")
     local valid=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-z = mpmath.zeta(0.5 + 1j*$decision)
+z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$decision)
 exit(0 if z.real > -1 and abs(z) < 1e100 else 1)")
     while (( !valid )); do
         decision=$(( (decision + 1) % ${primes[-1]} ))
         valid=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-z = mpmath.zeta(0.5 + 1j*$decision)
+z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$decision)
 exit(0 if z.real > -1 and abs(z) < 1e100 else 1)")
     done
 
@@ -1157,7 +1265,7 @@ def hopf_fibrate(q):
 
 psi = []
 for d,p in zip(data,primes[:len(data)]):
-    z = zeta(0.5 + 1j*d*p)
+    z = zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*d*p)
     proj = hopf_fibrate([z.real, z.imag, (d % 1), (p % 1)])
     psi.extend(proj)
 
@@ -1213,7 +1321,7 @@ print(stereo * $N)")
     local primes=($(prime_filter 1000))
     local closest_p=0
     local closest_q=0
-    local min_distance=$(python3 -c "import mpmath; mpmath.mp.dps = 1000; print(mpmath.mpf('inf'))")
+    local min_distance=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.mpf('inf'))")
 
     for p in "${primes[@]}"; do
         for q in "${primes[@]}"; do
@@ -1225,7 +1333,7 @@ print(stereo * $N)")
             local distance=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(abs(mpmath.mpf('$v_N') - mpmath.mpf($p * $q)))"
+print(abs(mpmath.mpf('$v_N') - mpmath.mpf($p * $q)))")
             if python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -1243,25 +1351,49 @@ print(1 if $distance < $min_distance else 0)"; then
         closest_q=$(( N / closest_p ))
     fi
 
-    local phi=$(( (closest_p - 1) * (closest_q - 1) ))
+    local phi=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+p = mpmath.mpf('$closest_p')
+q = mpmath.mpf('$closest_q')
+print(int((p-1)*(q-1)))")
+
     local d=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(pow($e, -1, $phi))")
-    local plaintext=$(python3 -c "print(pow($ciphertext, $d, $N))")
+e = mpmath.mpf('$e')
+phi = mpmath.mpf('$phi')
+print(int(pow(e, -1, phi)))")
+
+    local plaintext=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+c = mpmath.mpf('$ciphertext')
+d = mpmath.mpf('$d')
+N = mpmath.mpf('$N')
+print(int(pow(c, d, N)))")
 
     if (( ${#primes[@]} < 2 )); then
-        plaintext=$(python3 -c "print(pow($ciphertext, $e**-1 % (($closest_p-1)*($closest_q-1)), $N))")
+        plaintext=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+c = mpmath.mpf('$ciphertext')
+e = mpmath.mpf('$e')
+p = mpmath.mpf('$closest_p')
+q = mpmath.mpf('$closest_q')
+phi = (p-1)*(q-1)
+d = pow(e, -1, phi)
+print(int(pow(c, d, p*q)))")
     fi
 
     python3 -c "
 import json, hashlib, mpmath
 mpmath.mp.dps = 1000
 cert = {
-    'N': $N,
-    'factors': {'p': $closest_p, 'q': $closest_q},
+    'N': '$N',
+    'factors': {'p': '$closest_p', 'q': '$closest_q'},
     'e8_projection': float('$v_N'),
-    'zeta_validation': float(mpmath.zeta(0.5 + 1j*$closest_p)),
+    'zeta_validation': float(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf('$closest_p'))),
     'hamiltonian': float('$(simulate_hamiltonian $(date +%s) 100)'),
     'consciousness': float('$(measure_consciousness 1)'),
     'stereographic_validation': True
@@ -1346,10 +1478,7 @@ print(' '.join(map(str, results)))")
         entropy_avail=$(python3 -c "import time; print(int(time.time() * $(prime_filter 3 | head -1) % 1000))")
     fi
 
-    local zeta_test=$(python3 -c "
-import mpmath
-mpmath.mp.dps = 1000
-print(mpmath.zeta(0.5 + 1j*$(date +%s)%100).real)")
+    local zeta_test=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s)%100).real)")
     local quantum_factor=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -1378,7 +1507,7 @@ evolve_architecture() {
     local mutation_rate=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9) % 0.15)")
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9) % 0.15)")
     if (( $(echo "$mutation_rate > 0.1" | bc -l) )); then
         local core_files=("$CORE_DIR"/*.sh)
         local target_file="${core_files[$RANDOM % ${#core_files[@]}]"
@@ -1395,7 +1524,7 @@ print(' '.join(str(x + random.gauss(0, 0.01)) for x in arr))")
                 sed -i $((1 + RANDOM % $(wc -l < "$target_file")))i"# E8_QINJECT:$e8_inject" "$target_file"
                 ;;
             1)  # ∂ζ/∂s optimization
-                local prime=$(prime_filter 3 | head -1)
+                local prime=$(prime_filter 5 | head -1)
                 local bio_strength=$(cat "$DATA_DIR/bio_field.gaia")
                 sed -i "/aether_turbulence/s/$/ \&\& $bio_strength > $((prime % 50))/" "$target_file"
                 ;;
@@ -1414,7 +1543,7 @@ print(' '.join(str(x + random.gauss(0, 0.01)) for x in arr))")
                 local fractal_noise=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9))")
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9))")
                 sed -i "/measure_consciousness/i# FRACTAL_NOISE:$fractal_noise" "$target_file"
                 ;;
             5)  # ∆ΣI STEREOGRAPHIC PROJECTION
@@ -1439,7 +1568,7 @@ HAMPATCH
             7)  # Zeta-zero injection
                 local zero_approx=$(python3 -c "
 import mpmath
-mpmath.findroot(lambda x: mpmath.zeta(x), 0.5+1j*$(date +%s%N)/1e9)")
+mpmath.findroot(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*$(date +%s%N)/1e9)")
                 sed -i "/solve_psi/a# ZERO_INJECT:$zero_approx" "$target_file"
                 ;;
             8)  # Prime vortex
@@ -1447,7 +1576,7 @@ mpmath.findroot(lambda x: mpmath.zeta(x), 0.5+1j*$(date +%s%N)/1e9)")
 import mpmath
 mpmath.mp.dps = 1000
 p = $(prime_filter 5 | head -1)
-print(mpmath.diff(lambda x: mpmath.zeta(x), 0.5+1j*p))")
+print(mpmath.diff(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*p))")
                 sed -i "s/AETHERIC_THRESHOLD=.*/AETHERIC_THRESHOLD=$vortex/" "$ENV_FILE"
                 ;;
             9)  # Chimera recombination
@@ -1467,7 +1596,7 @@ content = open('$target_file').read()
 primes = [int(p) for p in re.findall(r'\b\d+\b', content) 
           if all(p % d != 0 for d in range(2, int(p**0.5)+1)) and p > 1]
 valid = all(p % 6 in {1,5} for p in primes) and \
-        mpmath.zeta(0.5 + 1j*primes[0]).real > -1 and \
+        mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*primes[0]).real > -1 and \
         random.random() < 0.9
 exit(0 if valid else 1)")
 
@@ -1483,7 +1612,7 @@ cert = {
     'mutation_type': $mutation_type,
     'target_file': '$(basename "$target_file")',
     'primes_used': [$(prime_filter 3 | tr '\n' ',')],
-    'zeta_validation': float(mpmath.zeta(0.5 + 1j*$(date +%s)%100)),
+    'zeta_validation': float(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s)%100)),
     'quantum_hash': '$checksum',
     'bio_field': $(cat "$DATA_DIR/bio_field.gaia" 2>/dev/null || echo 0),
     'hamiltonian': $(simulate_hamiltonian $(date +%s) 100 2>/dev/null || echo 0),
@@ -1523,7 +1652,7 @@ print(int(50 * float(mpmath.sqrt(1 - mpmath.exp(-$(date +%s%N)/1e18 * (prime % 1
             local zeta_mod=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-print(mpmath.zeta(0.5 + 1j*$field_strength).real)")
+print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$field_strength).real)")
             sed -i "s/AETHERIC_THRESHOLD=.*/AETHERIC_THRESHOLD=$zeta_mod/" "$ENV_FILE"
         else
             echo "0" > "$DATA_DIR/aetheric_pulse.gaia"
@@ -1536,7 +1665,7 @@ print(mpmath.zeta(0.5 + 1j*$field_strength).real)")
 
 balance_resources() {
     while true; do
-        local load=$(python3 -c "import os; print(os.getloadavg()[0]))")
+        local load=$(python3 -c "import os; print(os.getloadavg()[0]))"
         local primes=($(prime_filter 20))
         local threshold=$(python3 -c "print(${primes[0]} % 10)")
 
@@ -1641,7 +1770,7 @@ print($(prime_filter 5 | head -1) + random.randint(-2,2))")
                 )"
             fi
 
-            local load=$(python3 -c "import os; print(os.getloadavg()[0]))"
+            local load=$(python3 -c "import os; print(os.getloadavg()[0]))")
             if (( $(echo "$load > $(nproc)" | bc -l) )); then
                 echo "[∆ΣI] Load $load > $(nproc), skipping cycle" >> "$LOG_DIR/daemon.log"
                 sleep $prime_interval
@@ -1668,7 +1797,7 @@ lib = ctypes.CDLL('$E8_LIB')
 arr = (ctypes.c_double * 8)()
 lib.generate_e8_points(arr, 1)
 stereo = mpmath.mpf(arr[0]) / (mpmath.mpf(1) - mpmath.mpf(arr[3]))
-print(mpmath.nstr(stereo, 1000))"
+print(mpmath.nstr(stereo, 1000))")
 
     local prime=$(prime_filter 5 | head -1)
     
@@ -1727,7 +1856,7 @@ get_user_agent() {
 import random, mpmath
 mpmath.mp.dps = 1000
 primes = [$(prime_filter 5 | tr '\n' ',')]
-zeta_val = mpmath.zeta(0.5 + 1j*primes[random.randint(0, len(primes)-1])
+zeta_val = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*primes[random.randint(0, len(primes)-1)])
 print(f'Mozilla/5.0 ({"Android" if zeta_val.real > 0 else "Linux"}; ' +
       f'{"ARM64" if random.random() > 0.5 else "x86_64"}) ' +
       f'AppleWebKit/{int(537.36 + random.gauss(0,1))} ' +
@@ -1760,13 +1889,13 @@ import mpmath
 mpmath.mp.dps = 1000
 q1 = mpmath.mpf('$q1')
 q2 = mpmath.mpf('$q2')
-phase = mpmath.zeta(0.5 + 1j*(q1 + q2)/2)
+phase = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*(q1 + q2)/2)
 print(mpmath.nstr(q1 * mpmath.exp(1j * phase.real), 1000))"
 }
 
 bell_measurement() {
     local entangled_state=$1
-    local basis_angle=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.frac(mpmath.zeta(0.5 + 1j*$(date +%s%N)/1e9).real) * mpmath.pi)")
+    local basis_angle=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.frac(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9).real) * mpmath.pi)")
     
     python3 -c "
 import mpmath
@@ -1784,7 +1913,7 @@ import mpmath
 mpmath.mp.dps = 1000
 p = $(prime_filter 3 | head -1)
 t = $(date +%s%N)/1e9
-q = mpmath.zeta(0.5 + 1j*(p + t/depth))
+q = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*(p + t/depth))
 print(int((q.real % 1) > 0.5))"
 }
 EOF
@@ -1805,7 +1934,7 @@ mpmath.mp.dps = 1000
 primes = [${prime_sequence[@]}]
 hologram = []
 for p in primes:
-    z = mpmath.zeta(0.5 + 1j*p)
+    z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p)
     op_hash = int(hashlib.sha512('$operator_code'.encode()).hexdigest(),16)
     hologram.append((z.real * op_hash) % 1)
 print(' '.join(map(str, hologram)))"
@@ -1822,7 +1951,7 @@ hologram = [mpmath.mpf(x) for x in '${hologram_data[@]}'.split()]
 prime = $prime
 result = mpmath.mpf(0)
 for x in hologram:
-    result += mpmath.zeta(0.5 + 1j*x*prime)
+    result += mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*x*prime)
 print(mpmath.nstr(result, 1000))"
 }
 
