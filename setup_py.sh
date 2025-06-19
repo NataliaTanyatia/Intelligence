@@ -17,7 +17,6 @@ PRIME_SEQUENCE="$DATA_DIR/tf_primes.gaia"
 LOCAL_DB="$DATA_DIR/state.db"
 RFK_MODULE="$CORE_DIR/rfk_brainworm.so"
 DELAUNAY_REGISTER="$DATA_DIR/delaunay_register.gaia"
-CHIMERA_EDGES_FILE="$DATA_DIR/chimera_edges.gaia"
 
 PHI="$(python3 -c '
 import mpmath
@@ -29,7 +28,6 @@ CONSCIOUSNESS_THRESHOLD="mpmath.mpf(3)/mpmath.mpf(5)"
 ADIAABATIC_CONSTANT="mpmath.mpf(2).sqrt()"
 RFK_TEMPORAL_CONSTANT="mpmath.mpf(1968)/mpmath.mpf(2024)"
 DIRAC_EPSILON="mpmath.mpf(1)/mpmath.mpf(10)**1000"
-CHIMERA_EDGES="240"
 
 safe_div() {
     python3 -c "
@@ -40,7 +38,7 @@ b = mpmath.mpf('$2')
 if b == 0:
     psi = mpmath.mpf('$(cat "$DATA_DIR/psi_value.gaia")')
     xor_hash = int(hashlib.sha512(str(a).encode()).hexdigest(),16)
-    result = a ^ xor_hash if psi.real > 0 else a * mpmath.sqrt(mpmath.mpf('$(prime_filter 3 | head -1)'))
+    result = (a ^ xor_hash) * mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf('$(date +%s%N)')/1e9).real if psi.real > 0 else a * mpmath.sqrt(mpmath.mpf('$(prime_filter 3 | head -1)')) * mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf('$(date +%s%N)')/1e9).real
     print(result)
 else:
     print(a / b)"
@@ -48,6 +46,13 @@ else:
 
 hypersphere_kissing() {
     local R=$1
+    CHIMERA_EDGES=$(python3 -c "
+import mpmath
+mpmath.mp.dps = 1000
+base_edges = mpmath.mpf(240)
+dynamic_factor = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf('$(date +%s%N)')/1e9).real % 1
+print(int(base_edges * (1 + dynamic_factor)))")
+
     python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -55,9 +60,9 @@ primes = [$(prime_filter 10 | tr '\n' ',')]
 points = [(mpmath.mpf(p), mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*mpmath.mpf(p)).real) for p in primes]
 valid = [p for p in points if abs(p[1] - mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p[0]).real) < 0.1]
 count = sum(1 for p in valid if mpmath.sqrt(p[0]**2 + p[1]**2) <= mpmath.mpf('$R'))
-if count < 240:
+if count < $CHIMERA_EDGES:
     delta_x = mpmath.mpf('$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.diff(lambda x: mpmath.zeta(x), mpmath.mpf('0.5')+1j*mpmath.mpf('$R'))).real")')
-    count = int(mpmath.fmul(count, mpmath.fadd(1, mpmath.fdiv(delta_x, mpmath.mpf(240)))))
+    count = int(mpmath.fmul(count, mpmath.fadd(1, mpmath.fdiv(delta_x, mpmath.mpf($CHIMERA_EDGES)))))
 print(mpmath.nstr(count, 1000))"
 }
 
@@ -82,12 +87,12 @@ check_dependencies() {
         ["openssl"]="openssl"
         ["torsocks"]="tor"
         ["mitmproxy"]="mitmproxy"
-        ["clinfo"]="clinfo"
+        ["clinfo"]=""
     )
 
     for cmd in "${!deps[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            pkg install "${deps[$cmd]}" -y > /dev/null 2>&1
+            [[ -n "${deps[$cmd]}" ]] && pkg install "${deps[$cmd]}" -y > /dev/null 2>&1
         fi
     done
 
@@ -101,7 +106,6 @@ check_dependencies() {
 #include <mpfr.h>
 #include <CL/cl.h>
 
-#define CHIMERA_EDGES 240
 #define DIRAC_EPSILON 1e-1000
 
 void normalize_quaternion(mpfr_t q[4]) {
@@ -488,6 +492,12 @@ detect_hardware() {
             echo "GPU_TYPE=ADRENO"
         elif grep -qi "mali" /proc/cpuinfo; then
             echo "GPU_TYPE=MALI"
+        elif [[ -f "/proc/driver/nvidia/version" ]]; then
+            echo "GPU_TYPE=NVIDIA"
+        elif grep -qi "hsa" /proc/cpuinfo || dmesg | grep -qi "hsa"; then
+            echo "GPU_TYPE=HSA"
+        elif ls /dev/* | grep -qi 'fpga\|asic'; then
+            echo "GPU_TYPE=FPGA"
         elif command -v clinfo &>/dev/null; then
             echo "GPU_TYPE=OPENCL_E8_H"
         else
@@ -605,15 +615,32 @@ persist_data() {
 
     [[ -n "$FIREBASE_PROJECT_ID" ]] && {
         local encrypted=$(python3 -c "
-import mpmath, hashlib
+import mpmath, hashlib, json, requests
 mpmath.mp.dps = 1000
 p = ${primes[0]}
 q = ${primes[-1]}
 e = mpmath.mpf('$(date +%s%N)') % 1000
 data = '$compressed'
 key = hashlib.sha512((str(p) + str(q) + str(e)).encode()).hexdigest()
-print(''.join(chr(ord(c) ^ ord(k)) for c,k in zip(data, key)))"
-        
+encrypted = ''.join(chr(ord(c) ^ ord(k)) for c,k in zip(data, key))
+
+if not '$FIREBASE_API_KEY':
+    print(encrypted)
+else:
+    auth_url = 'https://identitytoolkit.googleapis.com/v1/tokens?key=' + '$FIREBASE_API_KEY'
+    refresh_token = open('$BASE_DIR/firebase.token').read() if os.path.exists('$BASE_DIR/firebase.token') else ''
+    if refresh_token:
+        response = requests.post(auth_url, json={
+            'grantType': 'refresh_token',
+            'refreshToken': refresh_token
+        })
+        if response.status_code == 200:
+            new_token = response.json().get('refresh_token', '')
+            with open('$BASE_DIR/firebase.token.new', 'w') as f:
+                f.write(new_token)
+    print(encrypted)
+")
+
         touch "$DATA_DIR/firebase.lock"
         curl -X PUT -d "$encrypted" \
             "https://$FIREBASE_PROJECT_ID.firebaseio.com/data/$(uuidgen).json?auth=$(cat $BASE_DIR/firebase.token)" >/dev/null 2>&1
@@ -622,9 +649,9 @@ print(''.join(chr(ord(c) ^ ord(k)) for c,k in zip(data, key)))"
         local new_key=$(python3 -c "
 import mpmath, hashlib
 mpmath.mp.dps = 1000
-primes = [${primes[@]}
+primes = [${primes[@]}]
 key_seed = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*primes[-1])
-        print(hashlib.sha512(str(float(key_seed.real)).hexdigest())")
+print(hashlib.sha512(str(float(key_seed.real)).encode()).hexdigest())")
         echo "$new_key" > "$BASE_DIR/firebase.token.new"
         mv "$BASE_DIR/firebase.token.new" "$BASE_DIR/firebase.token"
     }
@@ -688,7 +715,7 @@ mpmath.mp.dps = 1000
 load = mpmath.mpf('$cpu_load')
 mem = mpmath.mpf('$available_mem')
 p = mpmath.mpf('$prime')
-optimal = min(10000, int((mem * 1000 / (load + 1)) + int(p) % 100)
+optimal = min(10000, int((mem * 1000 / (load + 1)) + int(p) % 100))
 print(optimal)" > "$DATA_DIR/optimal_dps.gaia"
     
     export MPMATH_DPS=$(cat "$DATA_DIR/optimal_dps.gaia")
@@ -840,7 +867,7 @@ init_fs() {
   },
   "hamiltonian": {
     "initial": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes))",
-    "final": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes))")",
+    "final": "$(python3 -c "import mpmath; mpmath.mp.dps=1000; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes)))",
     "adiabatic": true,
     "hsa_support": $(grep -q "HSA_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
     "opencl_support": $(grep -q "OPENCL_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
@@ -882,13 +909,12 @@ PHOTONIC_SENSORS=false
 RFK_ACTIVE=true
 DELAUNAY_BINDING=true
 QUANTUM_EMULATOR=false
-CHIMERA_EDGES=240
 EOF
 
     cat > "$ENV_LOCAL" <<EOF
 # Local Overrides (Prime-Encoded)
 WEB_CRAWLER_ID="Mozilla/5.0 (\$(shuf -e "Windows NT 10.0" "Macintosh; Intel Mac OS X 10_15" "Linux; Android 10" -n 1); \$(shuf -e "x86_64" "ARM" "aarch64" -n 1)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/\$(shuf -i 100-120 -n 1).0.0.0 Safari/537.36"
-PERSONA_SEED=\$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(\$(date +%s)%100))")
+PERSONA_SEED=\$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(\$(date +%s)%100))"
 TOR_ENABLED=false
 TOR_PROXY="socks5://127.0.0.1:$(detect_mitm_port)"
 AUTH_SIGNATURE="\$(openssl rand -hex 32)"
@@ -912,7 +938,7 @@ print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*p).real % 2)")
 import mpmath, hashlib
 mpmath.mp.dps = 1000
 sig = '$(openssl dgst -sha256 < /proc/cpuinfo | cut -d' ' -f2)'
-zeta_val = complex(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*int(sig[:8], 16)))
+zeta_val = complex(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*int(sig[:8], 16))
 print('VALID' if zeta_val.real > -1 and abs(zeta_val) < 1e100 and not mpmath.isnan(zeta_val) else 'INVALID')")
     echo "[∆ΣI] Hardware Validation: $hw_validation" >> "$DNA_LOG"
 
@@ -1219,7 +1245,7 @@ decide_by_zero() {
         local p=${primes[$i % ${#primes[@]}]}
         local n=$((i % 10 + 1))
         local e8_constraint=$(python3 -c "
-import ctypes
+import ctypes, random
 lib = ctypes.CDLL('$E8_LIB')
 pt = (ctypes.c_double * 8)()
 lib.generate_e8_points(pt, 1)
@@ -1252,7 +1278,7 @@ print(int(mpmath.power(mpmath.mpf(d), mpmath.mpf(p)/mpmath.mpf(${primes[-1]}))))
         decision=$(python3 -c "
 d = $decision
 print(int(''.join('1' if x == '0' else '0' for x in bin(d)[2:]), 2))")
-    done
+    fi
 
     echo "$decision"
 }
@@ -1442,7 +1468,7 @@ detect_hardware() {
     local benchmark_data=$(python3 -c "
 import ctypes, time, math, random
 lib = ctypes.CDLL('$E8_LIB')
-arr = (ctypes.c_double * 2048)()
+arr = (ctypes.c_double * (8 * 256))()
 primes = [$(prime_filter 5 | tr '\n' ',')]
 
 results = []
@@ -1490,7 +1516,7 @@ print(' '.join(map(str, results)))")
         entropy_avail=$(python3 -c "import time; print(int(time.time() * $(prime_filter 3 | head -1) % 1000))")
     fi
 
-    local zeta_test=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(0.5 + 1j*$(date +%s)%100).real)")
+    local zeta_test=$(python3 -c "import mpmath; mpmath.mp.dps=1000; print(mpmath.zeta(0.5 + 1j*$(date +%s)%100).real % 2)")
     local quantum_factor=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -1522,7 +1548,7 @@ mpmath.mp.dps = 1000
 print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9) % 0.15)")
     if (( $(echo "$mutation_rate > 0.1" | bc -l) )); then
         local core_files=("$CORE_DIR"/*.sh)
-        local target_file="${core_files[$RANDOM % ${#core_files[@]}]"
+        local target_file="${core_files[$RANDOM % ${#core_files[@]}]}"
         local mutation_type=$(( $(date +%s) % 11 ))
 
         case $mutation_type in
@@ -1530,9 +1556,9 @@ print(mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 1j*$(date +%s%N)/1e9) % 0.
                 local e8_inject=$(python3 -c "
 import ctypes, random
 lib = ctypes.CDLL('$E8_LIB')
-arr = (ctypes.c_double * 8)()
-lib.generate_e8_points(arr, 1)
-print(' '.join(str(x + random.gauss(0, 0.01)) for x in arr))")
+pt = (ctypes.c_double * 8)()
+lib.generate_e8_points(pt, 1)
+print(' '.join(str(x + random.gauss(0, 0.01)) for x in pt))")
                 sed -i $((1 + RANDOM % $(wc -l < "$target_file")))i"# E8_QINJECT:$e8_inject" "$target_file"
                 ;;
             1)  # ∂ζ/∂s optimization
@@ -1580,7 +1606,7 @@ HAMPATCH
                 local zero_approx=$(python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
-mpmath.findroot(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*$(date +%s%N)/1e9))")
+mpmath.findroot(lambda x: mpmath.zeta(x), mpmath.mpf('0.5')+1j*$(date +%s%N)/1e9))")
                 sed -i "/solve_psi/a# ZERO_INJECT:$zero_approx" "$target_file"
                 ;;
             8)  # Prime vortex
@@ -1588,7 +1614,7 @@ mpmath.findroot(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*$
 import mpmath
 mpmath.mp.dps = 1000
 p = $(prime_filter 5 | head -1)
-print(mpmath.diff(lambda x: mpmath.zeta(x), mpmath.mpf('$ZETA_CRITICAL_LINE')+1j*p))")
+print(mpmath.diff(lambda x: mpmath.zeta(x), mpmath.mpf('0.5')+1j*p))")
                 sed -i "s/AETHERIC_THRESHOLD=.*/AETHERIC_THRESHOLD=$vortex/" "$ENV_FILE"
                 ;;
             9)  # Chimera recombination
@@ -1628,7 +1654,7 @@ cert = {
     'quantum_hash': '$checksum',
     'bio_field': $(cat "$DATA_DIR/bio_field.gaia" 2>/dev/null || echo 0),
     'hamiltonian': $(simulate_hamiltonian $(date +%s) 100 2>/dev/null || echo 0),
-    'stereographic_projection': True
+    'stereographic_validation': True
 }
 open('$DATA_DIR/mutation_cert.json', 'w').write(json.dumps(cert, indent=2))"
         else
