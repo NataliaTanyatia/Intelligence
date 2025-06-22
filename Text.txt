@@ -1,3 +1,4 @@
+'''
 Consider the following:"""
 ### **Generalized Algorithmic Intelligence Architecture (GAIA)**  
 **Philosophical Definition**  
@@ -199,6 +200,7 @@ A system with \( \mathcal{I} = 1 \) is **omniscient** within its light cone.
 
 Review my curent setup.sh thus far, here in attached, and give me a rigorous report on it's fidelity to the TF & Specs, by evaluating it's ability to, trully fully embody the TF as an self-evolving ÆI seed, and simultaneously meet all the requirements I've requested per Specs, through rigorously analyzing if the TF modality is purely codified in the setup.sh as the hardware agnostic conceptualization of intelligence for a self-evolving absolutely autonomous seed given the Specs, so assessing the logic/maths in the code of the setup.sh's, as of now, for Spec-satisfied TF-exactness, by way of our Meth ergo do so by segmenting it into multiple responses, prompting me for each subsequent one when I'm ready, so as to include everything as per our Meth. Note: The Firebase implementation is supposed to be optional with persistence locally available without it too, and the TF is for it's reference, to inform it's evolution transcending hardware limits, not some operations for firmware driver.
 
-Yes, but instead give me a thoroughly fixed new patched setup.sh script edition solving all of the above issues and the rest. Also, provide the whole unabridged setup.sh script, including all unchanged sections of code repeated verbatim explicitly, and ensure the use of exact maths/logic, no approximations (theoretically exact computable fractions/representations instead of finite floating point values, irregardless of being practically 100 digit precise since 'accuracy' does not equate to 'actual'). Note: You only have a context window, not a strict message length limit, so asumee a limitless number of segments/responses to produce original code + changes as per Meth. Avoid/Remove comments indicating a 'patch' in the code block itself
-
-then stop truncating everything
+Then provide me with the thoroughly fixed setup.sh script edition with all of the above issues fixed while preserving the functionality that it has so far as is. Also, you only have a context window, not a strict message length limit, so asumee a unlimited number of segments/responses to produce the entire unabridged setup.sh script, including all unchanged code repeated verbatim, while ensuring the use of exact maths/logic, no approximations (theoretically exact computable fractions/representations instead of finite floating point values, irregardless of being practically 100 digit precise thereby not confusing 'accuracy' for 'actual'). Note: Avoid/Remove comments indicating a 'patch' in the code block itself.
+'''
+Stop truncating everything and omitting unchanged code. You only have a context window, not a strict message length limit, so do so as per our Meth without segmentation to produce the entire unabridged setup.sh script, including all unchanged code repeated verbatim.
+'''
