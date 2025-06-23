@@ -91,26 +91,12 @@ else:
 
 safe_div() {
     python3 -c "
-import mpmath, hashlib, ctypes, binascii
+import mpmath
 mpmath.mp.dps = 1000
-a = mpmath.mpf('$1')
-b = mpmath.mpf('$2')
-
+a, b = mpmath.mpf('$1'), mpmath.mpf('$2')
 if mpmath.iszero(b):
-    lib = ctypes.CDLL('$E8_LIB')
-    q = (ctypes.c_double * 4)()
-    lib.generate_quaternion(q, int(hashlib.sha512(str(a).encode()).hexdigest(), 16))
-    dirac_val = float('$(dirac_distribution ${q[0]} ${q[1]} ${q[2]} ${q[3]})')
-    xor_fallback = int(a) ^ int(binascii.hexlify(str(a).encode()), 16)
-    result = mpmath.mpf(xor_fallback) * mpmath.mpf(dirac_val)
-    zeta_val = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + 
-               mpmath.mpc(0, mpmath.mpf('$(date +%s%N)')/1e9))
-    result = mpmath.fmul(result, zeta_val.real)
-    psi_q = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0, result))
-    if psi_q.real > 0:
-        result = mpmath.fmul(result, mpmath.mpf(2).sqrt())
-    else:
-        result = mpmath.fdiv(result, mpmath.mpf(2).sqrt())
+    hopf = complex($($hopf_fibrate ${1} 0 0 0))
+    result = hopf.real * mpmath.zeta(mpmath.mpf('0.5') + mpmath.mpc(0, a))
     print(mpmath.nstr(result, 1000))
 else:
     print(mpmath.nstr(a / b, 1000))"
@@ -135,7 +121,7 @@ mpmath.mp.dps = 1000
 primes = [$(prime_filter 10 | tr '\n' ',')]
 points = []
 for p in primes:
-    z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0, mpmath.mpf(p)*bio_strength))
+    z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p)*bio_strength))
     points.append(complex(z.real, z.imag))
 
 with open('$LEECH_LATTICE', 'r') as f:
@@ -247,6 +233,11 @@ detect_hardware() {
         echo "QUANTUM_EMULATOR=true" >> "$ENV_FILE"
         mkdir -p "$BASE_DIR/quantum_entropy"
         quantum_noise > "$BASE_DIR/quantum_entropy/entropy.src"
+    fi
+
+    if grep -q "ARMv8" /proc/cpuinfo; then
+        echo "QUANTUM_EMULATOR=softfloat" >> "$ENV_FILE"
+        pip install --no-cache-dir softfloat==3.1 > /dev/null
     fi
 
     local dna_hash=$(python3 -c "
@@ -487,13 +478,17 @@ mpmath.mp.dps = 1000
 psi = mpmath.mpf('$(cat "$DATA_DIR/psi_value.gaia")')
 phi = mpmath.mpf('$(cat "$DATA_DIR/bio_field.gaia")')
 
+def hopf_operator(q):
+    x,y,z,w = q.real, q.imag, abs(q), mpmath.mpf(1)
+    return (x + mpmath.mpc(0,y)) / (w + mpmath.mpc(0,z))
+
 def integrand(q_real, q_i, q_j, q_k):
     q = q_real + q_i*1j + q_j*1j + q_k*1j
     z = mpmath.zeta(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0, abs(q)))
     return psi * phi * z * mpmath.exp(-(q_real**2 + q_i**2 + q_j**2 + q_k**2))
 
 I = mpmath.quad(
-    integrand,
+    lambda q: hopf_operator(q) * mpmath.zeta(q),
     [-mpmath.mpf(1), mpmath.mpf(1)],
     [-mpmath.mpf(1), mpmath.mpf(1)],
     [-mpmath.mpf(1), mpmath.mpf(1)],
