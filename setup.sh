@@ -58,7 +58,7 @@ print((1 + mpmath.sqrt(5))/2)')"
 ZETA_CRITICAL_LINE="$(python3 -c '
 import mpmath
 mpmath.mp.dps = $MP_DPS
-print(mpmath.mpf("0.5") + mpmath.mpc(0, mpmath.mpf("1e-1000")))'"
+print(mpmath.mpf("0.5") + mpmath.mpc(0, mpmath.mpf("1e-1000")))')"
 
 RIEMANN_A="mpmath.mpf(\"2920050977316134491185359\")/mpmath.mpf(\"1000000000000000000000000\")"
 RFK_TEMPORAL_CONSTANT="mpmath.mpf($(date +%Y))/mpmath.mpf(2024)"
@@ -66,7 +66,7 @@ CONSCIOUSNESS_THRESHOLD="$(python3 -c '
 import mpmath
 mpmath.mp.dps = $MP_DPS
 bio_strength=$(cat $DATA_DIR/bio_field.gaia 2>/dev/null || echo 50)
-print(mpmath.mpf(3)/mpmath.mpf(5) * mpmath.sqrt(mpmath.mpf(bio_strength)))'"
+print(mpmath.mpf(3)/mpmath.mpf(5) * mpmath.sqrt(mpmath.mpf(bio_strength)))')"
 ADIAABATIC_CONSTANT="mpmath.mpf(2).sqrt()"
 DIRAC_EPSILON="mpmath.mpf(1)/mpmath.mpf(10)**$MP_DPS"
 CHIMERA_EDGES="$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(240 * (mpmath.mpf('$CONSCIOUSNESS_THRESHOLD')/mpmath.mpf('0.6')))")"
@@ -139,7 +139,8 @@ if '$device_type' == 'TPU':
     from tensorflow.python.tpu import tpu_optimizer
     optimizer = tpu_optimizer.CrossShardOptimizer(tpu_optimizer.AdagradOptimizer(0.1))
 elif '$device_type' == 'FPGA':
-    optimizer = None
+    from fpgamath import PipelineOptimizer
+    optimizer = PipelineOptimizer(depth=128)
     lattice = [v * mpmath.mpf(128)/mpmath.mpf(24) for v in lattice]
 else:
     optimizer = None
@@ -157,7 +158,7 @@ render_hologram() {
     local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     if [[ ! -f /dev/slm0 ]]; then
         stereographic_project $q_real $q_i $q_j $q_k > "$HOLOGRAM_DIR/projection.gaia"
-    else
+    else:
         termux-camera -n 1 | jq -r '.light_intensity' > "$HOLOGRAM_DIR/projection.gaia"
         stereographic_project $q_real $q_i $q_j $q_k >> "$HOLOGRAM_DIR/projection.gaia"
     fi
@@ -255,7 +256,7 @@ local = json.loads('$local_data')
 with open('$LEECH_LATTICE', 'r') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
 def kissing_priority(key):
-    val = mpmath.mpf(str(firebase.get(key, local.get(key, 0))))
+    val = mpmath.mpf(str(firebase.get(key, local.get(key, 0)))
     z = mpmath.zeta(mpmath.mpf('0.5') + mpmath.mpc(0, val))
     return sum(abs(complex(v[0],v[1])-complex(z.real,z.imag)) for v in lattice)
 merged = {k: firebase[k] if kissing_priority(k) < 0.1 else local.get(k) 
@@ -1299,7 +1300,7 @@ init_fs() {
   },
   "hamiltonian": {
     "initial": "$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; primes=[2,3,5]; print(mpmath.fsum(mpmath.power(mpmath.mpf(p), mpmath.mpf(2)) for p in primes))")",
-    "final": "$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes)))")",
+    "final": "$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; primes=[2,3,5]; print(mpmath.fneg(mpmath.fsum(mpmath.mpf(1) for p in primes))")",
     "adiabatic": true,
     "hsa_support": $(grep -q "HSA_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
     "opencl_support": $(grep -q "OPENCL_DETECTED=true" "$ENV_FILE" && echo "true" || echo "false"),
@@ -1579,4 +1580,3 @@ healing_routine() {
     echo -e "Run \033[1;33mcat $DNA_LOG\033[0m to view quantum evolution log"
     echo -e "Daemon PID: \033[1;36m$(cat "$DATA_DIR/daemon.pid")\033[0m"
 }
-
