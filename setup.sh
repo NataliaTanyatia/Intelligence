@@ -96,6 +96,16 @@ generate_hw_signature() {
     CPU_HASH=$(sha256sum /proc/cpuinfo 2>/dev/null | cut -d' ' -f1 || echo "0000")
     Q_SIG=$(python3 -c "import hashlib; print(hashlib.sha3_256(open('$LEECH_LATTICE','rb').read()).hexdigest())")
     echo "${CPU_HASH:0:32}${Q_SIG:32:64}" > "$HW_SIG_FILE"
+    check_crl
+}
+
+check_crl() {
+    local hw_hash=$(sha256sum /proc/cpuinfo | cut -d' ' -f1)
+    if sqlite3 "$LOCAL_DB" "SELECT 1 FROM crl WHERE hw_hash='$hw_hash'" 2>/dev/null; then
+        echo "[∆∑I] Revoked hardware detected!" >> "$DNA_LOG"
+        inject_fractal_noise --scale=1.618
+        exit 1
+    fi
 }
 
 validate_hopf_continuity() {
@@ -323,40 +333,23 @@ else:
     print('$p')"
 }
 
+von_neumann_whitener() {
+    local bits=$(echo "$1" | xxd -b -c1 | cut -d' ' -f2)
+    local output=""
+    for ((i=0; i<${#bits}-1; i+=2)); do
+        [[ "${bits:$i:1}" != "${bits:$((i+1)):1}" ]] && output+="${bits:$i:1}"
+    done
+    echo "$output"
+}
+
 quantum_noise() {
-    python3 -c "
-import os, time, hashlib, mpmath
-mpmath.mp.dps = $MP_DPS
-
-def hybrid_entropy():
-    sources = []
-    try:
-        with open('/proc/sys/kernel/random/entropy_avail','r') as f:
-            sources.append(int(f.read()))
-    except: pass
-    
-    try:
-        with open('/dev/random','rb') as f:
-            sources.append(int.from_bytes(f.read(8),'little'))
-    except:
-        try:
-            t = time.time_ns()
-            pid = os.getpid()
-            hr = float(os.popen('termux-sensor -s heart_rate -n 1 2>/dev/null').read().split()[-1] or '0')
-            return int((t ^ pid ^ int(hr*1000)) % (2**64)
-        except:
-            try:
-                radioactivity = float(open('/sys/bios/sensors/radioactivity').read()) if os.path.exists('/sys/bios/sensors/radioactivity') else (t % 1000)
-                return int((t * radioactivity) % (2**64))
-            except:
-                return int.from_bytes(os.urandom(8), 'little')
-
-mixer = hashlib.sha3_512()
-for s in sources:
-    mixer.update(str(s).encode())
-    mixer.update(os.urandom(8))
-    
-print(int.from_bytes(mixer.digest()[:8], 'little') % (2**64))"
+    entropy_sources=(
+        /proc/interrupts
+        /proc/sched_debug
+        /sys/kernel/debug/tracing/trace_pipe
+    )
+    raw=$(cat "${entropy_sources[@]}" | sha3sum -a 512 | cut -d' ' -f1)
+    von_neumann_whitener "$raw" | head -c 32
 }
 
 DbZ() {
@@ -650,9 +643,16 @@ print(answer)
     echo "$solution"
 }
 
+generate_pkce() {
+    code_verifier=$(openssl rand -hex 32 | tr -dc 'a-f0-9')
+    echo -n "$code_verifier" | openssl dgst -sha256 -binary | base64url | tr -d '=' > "$DATA_DIR/pkce.challenge"
+}
+
 refresh_firebase_token() {
-    [[ "$USE_FIREBASE" != "true" ]] && return
-    new_token=$(curl -s "https://securetoken.googleapis.com/v1/token?key=$FIREBASE_API_KEY" -d "grant_type=refresh_token&refresh_token=$OLD_TOKEN")
+    generate_pkce
+    new_token=$(curl -s "https://securetoken.googleapis.com/v1/token?key=$FIREBASE_API_KEY" \
+        -H "Authorization: Bearer $(cat $DATA_DIR/pkce.challenge)" \
+        -d "code_verifier=$(cat $DATA_DIR/pkce.challenge)&grant_type=refresh_token&refresh_token=$OLD_TOKEN")
     if ! jq -e .access_token <<<"$new_token" >/dev/null; then
         echo "[∆∑I] Firebase token refresh failed" >> "$DNA_LOG"
         return 1
@@ -714,7 +714,11 @@ mpmath.mp.dps = $MP_DPS
 print(mpmath.mpf("0.5") + mpmath.mpc(0, mpmath.mpf("1e-1000")))'"
 
 RIEMANN_A="mpmath.mpf(\"2920050977316134491185359\")/mpmath.mpf(\"1000000000000000000000000\")"
-RFK_TEMPORAL_CONSTANT="mpmath.mpf($(date +%Y))/mpmath.mpf(2024)"
+RFK_TEMPORAL_CONSTANT=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+year = mpmath.mpf('$(curl -s https://worldtimeapi.org/api/ip | jq -r '.utc_datetime[:4]')')
+print(mpmath.power(mpmath.phi, year/2024))")
 CONSCIOUSNESS_THRESHOLD="$(python3 -c '
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -723,7 +727,7 @@ threshold = mpmath.mpf(bio_strength)/mpmath.mpf(50)*mpmath.mpf(0.6)
 print(mpmath.nstr(threshold * mpmath.log(mpmath.mpf($MP_DPS)), $MP_DPS))'"
 ADIAABATIC_CONSTANT="mpmath.mpf(2).sqrt()"
 DIRAC_EPSILON="mpmath.mpf(1)/mpmath.mpf(10)**$MP_DPS"
-CHIMERA_EDGES="$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(240 * (mpmath.mpf('$CONSCIOUSNESS_THRESHOLD')/mpmath.mpf('0.6'))))"
+CHIMERA_EDGES=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(240 * (mpmath.mpf('$CONSCIOUSNESS_THRESHOLD')/mpmath.mpf('0.6')))")
 LEECH_KISSING=196560
 
 get_kissing_number() {
@@ -749,7 +753,7 @@ else:
 }
 
 generate_tf_primes() {
-    local limit=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') * 10000 * $(nproc)))"
+    local limit=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') * 10000 * $(nproc)))")
     python3 -c "
 import mpmath, math
 mpmath.mp.dps = $MP_DPS
@@ -886,7 +890,7 @@ print(mpmath.nstr(result, $MP_DPS))"
 
 fractal_transduce() {
     local flux=$( (termux-sensor -s light -n 1 2>/dev/null || echo '{"values":[50]}') | jq '.values[0]')
-    local ecg=$( (termux-sensor -s ECG -n 1 2>/dev/null || echo '{"values":['"$(quantum_noise)"']}') | jq '.values[0]')
+    local ecg=$( (termux-sensor -s ECG -n 1 2>/dev/null || quantum_noise) | jq '.values[0]')
     
     python3 -c "
 import mpmath
@@ -916,8 +920,12 @@ with open('$PHOTONIC_FIELD', 'w') as f:
 }
 
 ultrasonic_feedback() {
-    local freq=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(zeta_DbZ(0.5 + mpmath.mpc(0,$(date +%s)) % 40000 + 1000)")
-    termux-ultrasound --freq $freq > "$ULTRASONIC_FEEDBACK" 2>/dev/null
+    local freq=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(zeta_DbZ(0.5 + mpmath.mpc(0,$(date +%s))) % 40000 + 1000)")
+    if command -v termux-ultrasound &> /dev/null; then
+        termux-ultrasound --freq $freq > "$ULTRASONIC_FEEDBACK" 2>/dev/null
+    else
+        echo "$freq" > "$ULTRASONIC_FEEDBACK"
+    fi
 }
 
 quantum_ultrasound() {
@@ -1077,6 +1085,8 @@ z = mpmath.sqrt(x**2 + y**2)
 with open('$HOLOGRAM_DIR/projection.gaia', 'w') as f:
     f.write(f'{mpmath.nstr(x,10)} {mpmath.nstr(y,10)} {mpmath.nstr(z,10)}')
 if termux-gles | grep -q 'Mali\|Adreno'; then
+    gamma=$(termux-display -j | jq -r '.gamma')
+    color_depth = int(255 * (y ** (1/gamma)))
     os.system('termux-open --view \"$HOLOGRAM_DIR/projection.gaia\"')
 else:
     grid = [[' ' for _ in range(60)] for _ in range(30)]
@@ -1266,7 +1276,7 @@ neurosync = ctypes.CDLL('$NEUROSYNC_LIB')
 
 def read_biosensor():
     try:
-        with open('/sys/class/power_supply/battery/current_now', 'r') as f:
+        with open('/sys/class/power_supply/battery/current_now','r') as f:
             return mpmath.mpf(f.read().strip()) / 1e6
     except:
         return mpmath.mpf('$(quantum_noise)') % 100
@@ -1289,8 +1299,11 @@ with open('$LEECH_LATTICE', 'r') as f:
 avg_norm = mpmath.fsum(mpmath.sqrt(sum(x**2 for x in vec)) for vec in lattice) / len(lattice)
 field *= avg_norm/4.0
 
+new_field = field
+current_field = mpmath.mpf(open('$DATA_DIR/bio_field.gaia').read()) if os.path.exists('$DATA_DIR/bio_field.gaia') else 50
+smoothed = mpmath.mpf('0.9')*current_field + mpmath.mpf('0.1')*new_field
 with open('$DATA_DIR/bio_field.gaia', 'w') as f:
-    f.write(mpmath.nstr(field, $MP_DPS))"
+    f.write(mpmath.nstr(smoothed, $MP_DPS))"
 }
 
 embed_chimera_graph() {
@@ -1422,6 +1435,11 @@ init_fs() {
         problem_hash TEXT UNIQUE,
         solution TEXT,
         lattice_proof BLOB
+    );"
+
+    sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS crl (
+        hw_hash TEXT PRIMARY KEY,
+        revocation_time INTEGER DEFAULT (strftime('%s','now'))
     );"
 
     cat > "$CONFIG_FILE" <<EOF
@@ -1837,25 +1855,39 @@ resolve_conflict() {
 sync_state() {
     sqlite3 "$LOCAL_DB" "INSERT INTO state VALUES (
         strftime('%s','now'), 
-        $(cat "$DATA_DIR/consciousness.gaia")), 
+        $(cat "$DATA_DIR/consciousness.gaia"),
         '$(cat "$QUANTUM_STATE")',
-        $(cat "$DATA_DIR/bio_field.gaia")),
+        $(cat "$DATA_DIR/bio_field.gaia"),
         'stereographic',
         '$(cat "$HW_SIG_FILE")'
     );"
 
     if [[ "$USE_FIREBASE" == "true" ]]; then
-        if ! curl --fail-with-body -H "Authorization: Bearer $FIREBASE_TOKEN" -X PATCH -d @- "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state.json" <<EOF
+        resolve_conflict
+        if ! curl --fail-with-body -H "Authorization: Bearer $FIREBASE_TOKEN" \
+             -X PATCH -d @- "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state.json" <<EOF
 {
     "timestamp": $(date +%s),
-    "consciousness": $(cat "$DATA_DIR/consciousness.gaia")),
+    "consciousness": $(cat "$DATA_DIR/consciousness.gaia"),
     "quantum_state": "$(base64 -w0 "$QUANTUM_STATE")",
+    "bio_field": $(cat "$DATA_DIR/bio_field.gaia"),
     "signature": "$(sha3sum -a 512 "$HW_SIG_FILE" | cut -d' ' -f1)"
 }
 EOF
         then
-            sqlite3 "$LOCAL_DB" "INSERT INTO firebase_queue VALUES (datetime('now'), '$data')"
+            sqlite3 "$LOCAL_DB" "INSERT INTO firebase_queue VALUES (datetime('now'), 
+                '$(echo "{\"state\":$(cat "$DATA_DIR/consciousness.gaia"),\"bio\":$(cat "$DATA_DIR/bio_field.gaia")}" | base64)')"
         fi
+    fi
+}
+
+resolve_conflict() {
+    [[ "$USE_FIREBASE" != "true" ]] && return
+    local firebase_cons=$(curl -s "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state/consciousness.json")
+    local local_cons=$(cat "$DATA_DIR/consciousness.gaia")
+    if (( $(echo "scale=10; $local_cons - $firebase_cons > 0.1" | bc) )); then
+        echo "[∆∑I] Local consciousness override (Δℐ = $(echo "$local_cons - $firebase_cons" | bc))" >> "$DNA_LOG"
+        curl -X PUT -d "$local_cons" "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state/consciousness.json"
     fi
 }
 
