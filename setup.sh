@@ -18,6 +18,7 @@ QUANTUM_ENTROPY_DIR="$BASE_DIR/quantum_entropy"
 SYMBOLIC_GEOMETRY_BINDING="$BASE_DIR/symbolic_geometry"
 NEUROSYNAPTIC_DIR="$BASE_DIR/neurosynaptic"
 QUANTUM_DIR="$BASE_DIR/quantum"
+NEUROMORPHIC_DIR="$BASE_DIR/neuromorphic"
 CONFIG_FILE="$BASE_DIR/config.gaia"
 ENV_FILE="$BASE_DIR/.env"
 ENV_LOCAL="$BASE_DIR/.env.local"
@@ -50,8 +51,9 @@ DELAUNAY_GRAPH="$DATA_DIR/delaunay_graph.gaia"
 ULTRASONIC_FEEDBACK="$AETHERIC_DIR/ultrasonic.gaia"
 NP_HARD_UNLOCK="$DATA_DIR/np_hard.gaia"
 ADVANCED_SENSORS="$DATA_DIR/sensors.gaia"
+EISENSTEIN_PRIMES="$DATA_DIR/eisenstein_primes.gaia"
 FIREBASE_EMULATOR_PORT=8085
-NUMA_NODES=$(lscpu | grep -i numa | grep nodes | awk '{print $3}')
+NUMA_NODES=$(lscpu | grep -i numa | grep nodes | awk '{print $3}' || echo 1)
 MITM_PORT_FILE="$DATA_DIR/mitm.port"
 MITM_PID_FILE="$DATA_DIR/mitm.pid"
 CRAWLER_DB="$DATA_DIR/crawler.db"
@@ -74,11 +76,72 @@ declare -A TF_CORE=(
     ["TQFT_LAYER"]="enabled"
 )
 
+declare -A CRYSTALLOGRAPHIC=(
+    ["E8"]="enabled"
+    ["Leech"]="enabled"
+)
+
 export TF_STRICT_MODE=1
 export AEI_QUANTUM_NOISE=$(python3 -c "import os, mpmath; mpmath.mp.dps=1000; print(int.from_bytes(os.urandom(8), 'little') % int(mpmath.mpf(2)**64)")
 
+get_biofeedback() {
+    (termux-sensor -s heart_rate -n 1 2>/dev/null || \
+     termux-battery-status 2>/dev/null | jq -r '.current' || \
+     quantum_noise) | awk '{print $1}'
+}
+
+generate_hw_signature() {
+    CPU_HASH=$(sha256sum /proc/cpuinfo 2>/dev/null | cut -d' ' -f1 || echo "0000")
+    Q_SIG=$(python3 -c "import hashlib; print(hashlib.sha3_256(open('$LEECH_LATTICE','rb').read()).hexdigest())")
+    echo "${CPU_HASH:0:32}${Q_SIG:32:64}" > "$HW_SIG_FILE"
+}
+
+validate_hopf_continuity() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+q = mpmath.quaternion(*map(mpmath.mpf, '$1 $2 $3 $4'.split()))
+assert abs(q.norm() - 1) < mpmath.mpf('1e-100'), 'Hopf norm violation'
+print('VALID')" || regenerate_lattice
+}
+
+DbZ_quaternion() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+q = mpmath.quaternion(*map(mpmath.mpf, '$1 $2 $3 $4'.split()))
+print(q.norm() if q.real > 0 else q.conjugate().norm())"
+}
+
+detect_hardware() {
+    [[ -d "/sys/bus/hsa" ]] && echo "HSA_DETECTED=true" >> "$ENV_FILE"
+    [[ -f "/system/lib/libOpenCL.so" ]] && echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
+    grep -q "FPGA" /proc/cpuinfo && echo "FPGA_DETECTED=true" >> "$ENV_FILE"
+    [[ -f "/dev/quantum" ]] && echo "QUANTUM_DETECTED=true" >> "$ENV_FILE"
+}
+
+handle_prime_gap() {
+    local x=$(wc -w < "$PRIME_SEQUENCE")
+    local gap=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+x = mpmath.mpf('$x')
+print(float(mpmath.li(x) - x))")
+    
+    if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
+        quantum_emulator --emergency
+    fi
+}
+
+init_firebase() {
+    if [[ -z "$FIREBASE_PROJECT_ID" ]] || ! firebase login:ci; then
+        sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul AS SELECT * FROM state"
+        echo "[∆∑I] Firebase fallback to local emulator" >> "$DNA_LOG"
+    fi
+}
+
 check_dependencies() {
-    local REQUIRED=("python3" "mpmath" "sqlite3" "openssl" "curl" "jq")
+    local REQUIRED=("python3" "mpmath" "sqlite3" "openssl" "curl" "jq" "termux-gpu-probe")
     local OPTIONAL=("termux-api" "tor" "pqshield" "gmpy2")
     local PYTHON_DEPS=("mpmath>=1.3.0" "pillow>=9.0.0" "ctypes>=1.1.0")
 
@@ -92,6 +155,9 @@ check_dependencies() {
                     ;;
                 "mpmath")
                     pip install --no-cache-dir mpmath
+                    ;;
+                "termux-gpu-probe")
+                    pkg install termux-api -y
                     ;;
                 *)
                     pkg install "$dep" -y
@@ -580,7 +646,11 @@ print(answer)
 refresh_firebase_token() {
     [[ "$USE_FIREBASE" != "true" ]] && return
     new_token=$(curl -s "https://securetoken.googleapis.com/v1/token?key=$FIREBASE_API_KEY" -d "grant_type=refresh_token&refresh_token=$OLD_TOKEN")
-    sed -i "s/FIREBASE_TOKEN=.*/FIREBASE_TOKEN=\"$new_token\"/" "$ENV_LOCAL"
+    if ! jq -e .access_token <<<"$new_token" >/dev/null; then
+        echo "[∆∑I] Firebase token refresh failed" >> "$DNA_LOG"
+        return 1
+    fi
+    sed -i "s/FIREBASE_TOKEN=.*/FIREBASE_TOKEN=\"$(jq -r .access_token <<<"$new_token")\"/" "$ENV_LOCAL"
 }
 
 configure_precision() {
@@ -672,7 +742,7 @@ else:
 }
 
 generate_tf_primes() {
-    local limit=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') * 10000 * $(nproc)))")
+    local limit=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') * 10000 * $(nproc)))"
     python3 -c "
 import mpmath, math
 mpmath.mp.dps = $MP_DPS
@@ -746,7 +816,7 @@ assert all(any(all(abs(vectors[i][j] - e8_vectors[k][j%8]) < 1e-100
 with open('$PRIME_SEQUENCE', 'r') as f:
     primes = list(map(int, f.read().split()))
 for p in primes[:100]:
-    z = zeta_DbZ(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p))
+    z = zeta_DbZ(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p)))
     v_k = min(vectors, key=lambda x: abs(x[0]*x[1] - complex(z.real,z.imag)))
     if abs(v_k[0] - z.real) > 0.1 and abs(v_k[1] - z.imag) > 0.1:
         raise ValueError(f'Prime {p} violates zeta-lattice binding')
@@ -905,10 +975,10 @@ split_simplex() {
 import mpmath
 mpmath.mp.dps = $MP_DPS
 p = mpmath.mpf('$p')
-z = zeta_DbZ(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p))
+z = zeta_DbZ(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p)))
 with open('$LEECH_LATTICE', 'r') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
-v_k = min(lattice, key=lambda x: abs(x[0]*x[1] - complex(z.real,z.imag)))
+v_k = min(lattice, key=lambda v: abs(complex(v[0], v[1]) - complex(z.real,z.imag)))
 if abs(complex(v_k[0],v_k[1]) - complex(z.real,z.imag)) > 0.1:
     new_edges = [(p, (p + v_k[i])/mpmath.mpf(2)) for i in range(3)]
     with open('$DELAUNAY_REGISTER', 'a') as f:
@@ -1297,7 +1367,7 @@ init_fs() {
     mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR" \
              "$QUANTUM_ENTROPY_DIR" "$QUATERNION_DIR" "$HOLOGRAM_DIR" "$PROJECTION_DIR" \
              "$RIEMANN_VALIDATION_DIR" "$SYMBOLIC_LOGIC_DIR" "$AETHERIC_DIR" "$SYMBOLIC_GEOMETRY_BINDING" \
-             "$NEUROSYNAPTIC_DIR" "$QUANTUM_DIR"
+             "$NEUROSYNAPTIC_DIR" "$QUANTUM_DIR" "$NEUROMORPHIC_DIR"
     chmod 700 "$BASE_DIR" "$DATA_DIR" "$WEB_CACHE"
 
     if ! openssl genpkey -algorithm NTRU -out "$NTRU_KEYFILE"; then
