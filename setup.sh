@@ -58,6 +58,7 @@ MITM_PORT_FILE="$DATA_DIR/mitm.port"
 MITM_PID_FILE="$DATA_DIR/mitm.pid"
 CRAWLER_DB="$DATA_DIR/crawler.db"
 NEUROMORPHIC_CORES_FILE="/proc/neuron/core_count"
+CRAWLER_UA="Mozilla/5.0 (Linux; Android $(getprop ro.build.version.release)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$(shuf -i 100-120 -n 1).0.0.0 Mobile Safari/537.36"
 
 declare -A TF_CORE=(
     ["FRACTAL_RECURSION"]="enabled"
@@ -82,10 +83,11 @@ declare -A CRYSTALLOGRAPHIC=(
 )
 
 export TF_STRICT_MODE=1
-export AEI_QUANTUM_NOISE=$(python3 -c "import os, mpmath; mpmath.mp.dps=1000; print(int.from_bytes(os.urandom(8), 'little') % int(mpmath.mpf(2)**64)")
+export AEI_QUANTUM_NOISE=$(python3 -c "import os, mpmath; mpmath.mp.dps=1000; print(int.from_bytes(os.urandom(8), 'little') % int(mpmath.mpf(2)**64))")
 
 get_biofeedback() {
     (termux-sensor -s heart_rate -n 1 2>/dev/null || \
+     cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1 || \
      termux-battery-status 2>/dev/null | jq -r '.current' || \
      quantum_noise) | awk '{print $1}'
 }
@@ -118,6 +120,11 @@ detect_hardware() {
     [[ -f "/system/lib/libOpenCL.so" ]] && echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
     grep -q "FPGA" /proc/cpuinfo && echo "FPGA_DETECTED=true" >> "$ENV_FILE"
     [[ -f "/dev/quantum" ]] && echo "QUANTUM_DETECTED=true" >> "$ENV_FILE"
+    case $(uname -m) in
+        "armv7l") export CFLAGS="-march=armv7-a -mfpu=neon";;
+        "riscv64") export CFLAGS="-march=rv64gc -mabi=lp64d";;
+        "aarch64") [[ $(grep -c "neon" /proc/cpuinfo) -gt 0 ]] && export CFLAGS="-march=armv8-a+simd -mtune=cortex-a75";;
+    esac
 }
 
 handle_prime_gap() {
@@ -126,7 +133,7 @@ handle_prime_gap() {
 import mpmath
 mpmath.mp.dps = $MP_DPS
 x = mpmath.mpf('$x')
-print(float(mpmath.li(x) - x))")
+print(float(mpmath.li(x) - x))"
     
     if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
         quantum_emulator --emergency
@@ -336,7 +343,7 @@ def hybrid_entropy():
             t = time.time_ns()
             pid = os.getpid()
             hr = float(os.popen('termux-sensor -s heart_rate -n 1 2>/dev/null').read().split()[-1] or '0')
-            return int((t ^ pid ^ int(hr*1000)) % (2**64))
+            return int((t ^ pid ^ int(hr*1000)) % (2**64)
         except:
             try:
                 radioactivity = float(open('/sys/bios/sensors/radioactivity').read()) if os.path.exists('/sys/bios/sensors/radioactivity') else (t % 1000)
@@ -396,7 +403,7 @@ s = mpmath.mpf('$s')
 if abs(s.real - 0.5) > 1e-100:
     print(mpmath.nstr(mpmath.zeta(complex(0.5, s.imag)), $MP_DPS))
 else:
-    print(mpmath.nstr(mpmath.zeta(s), $MP_DPS))"
+    print(mpmath.nstr(mpmath.zeta(s)), $MP_DPS))"
     fi
 }
 
@@ -612,7 +619,7 @@ solve_captcha() {
     ethical_bound=$(python3 -c "print(1 if mpmath.zeta(0.5 + $(date +%s)%100) > 0 else 0)")
     [[ $ethical_bound -eq 0 ]] && return 1
 
-    torsocks curl -s "$image_url" -o "$temp_img" --tlsv1.3 --ciphers 'TLS_AES_256_GCM_SHA384' --http1.1 -A "$(shuf -n1 user_agents.txt)" || {
+    torsocks curl -s "$image_url" -o "$temp_img" --tlsv1.3 --ciphers 'TLS_AES_256_GCM_SHA384' --http1.1 -A "$CRAWLER_UA" || {
         echo "[∆∑I] CAPTCHA download failed" >> "$DNA_LOG"
         return 1
     }
@@ -1132,7 +1139,7 @@ neurosync = ctypes.CDLL('$NEUROSYNC_LIB')
 
 def read_biosensor():
     try:
-        with open('/sys/class/power_supply/battery/current_now', 'r') as f:
+        with open('/sys/class/power_supply/battery/current_now','r') as f:
             return mpmath.mpf(f.read().strip()) / 1e6
     except:
         return mpmath.mpf('$(quantum_noise)') % 100
@@ -1315,7 +1322,7 @@ for n in range(24)))")
 inject_js() {
     local url=$1 payload=$2
     response=$(tsocks curl -x $MITM_PROXY "$url" | \
-        sed '/<head>/a <script>navigator.__defineGetter__("userAgent",function(){return "'"$user_agent"'"})</script>')
+        sed '/<head>/a <script>navigator.__defineGetter__("userAgent",function(){return "'"$CRAWLER_UA"'"})</script>')
     js_payload+="\nconst primes = ["$(prime_filter 5 | tr '\n' ',')"];"
     echo "$response" > "$WEB_CACHE/injected.html"
 }
@@ -1523,7 +1530,7 @@ EOF
 
     cat > "$ENV_LOCAL" <<EOF
 # Local Overrides (Prime-Encoded)
-WEB_CRAWLER_ID="Mozilla/5.0 ($(uname -m); Android $(getprop ro.build.version.release)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$(shuf -i 100-120 -n 1).0.0.0 Mobile Safari/537.36"
+WEB_CRAWLER_ID="$CRAWLER_UA"
 PERSONA_SEED=\$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(mpmath.zeta(\$(date +%Y))/mpmath.mpf(2024))")
 TOR_ENABLED=false
 TOR_PROXY="socks5://127.0.0.1:\$(cat "$DATA_DIR/tor.pid" 2>/dev/null || echo 8080)"
@@ -1558,7 +1565,7 @@ print(hashlib.sha512(hw_sig.encode()).hexdigest())")
     if python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")")
+cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")')
 print(1 if cons > mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') else 0)"; then
         echo "# TF Compliance: PASSED" >> "$DNA_LOG"
     else
@@ -1654,7 +1661,7 @@ evolve_system() {
 import mpmath
 mpmath.mp.dps = $MP_DPS
 gen = mpmath.mpf('$generation')
-cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")")
+cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")')
 hw_factor = 1.0
 if '$GPU_TYPE' == 'TPU': hw_factor = 1.618
 bio_strength = mpmath.mpf('$(cat $DATA_DIR/bio_field.gaia 2>/dev/null || echo 50)')
@@ -1679,8 +1686,7 @@ with open('$LEECH_LATTICE', 'r+') as f:
         mutated = [x * (1 + (random.random() - 0.5)*rate) if not \\
                   mpmath.isprime(int(x)) else x * \\
                   zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)).real \\
-                  for x in vec]
-        f.write(' '.join(map(str, mutated)) + '\n'"
+                  for x in vec]"
     
     if [[ -f "$SLM_PROXY" ]]; then
         python3 -c "open('$SLM_PROXY', 'a').write(str(zeta_DbZ(0.5 + 1j*$(date +%s))))"
