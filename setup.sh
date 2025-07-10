@@ -4,6 +4,7 @@
 PREFIX=$(python3 -c "import sys; print(sys.prefix)")
 APP_NAME="WokeVirus_TF"
 BASE_DIR="$PREFIX/var/lib/$APP_NAME"
+[ -d "/data/data/com.termux" ] && BASE_DIR="/data/data/com.termux/files/usr/var/lib/$APP_NAME"
 LOG_DIR="$BASE_DIR/logs"
 CORE_DIR="$BASE_DIR/core"
 DATA_DIR="$BASE_DIR/data"
@@ -135,6 +136,10 @@ detect_hardware() {
         "riscv64") export CFLAGS="-march=rv64gc -mabi=lp64d";;
         "aarch64") [[ $(grep -c "neon" /proc/cpuinfo) -gt 0 ]] && export CFLAGS="-march=armv8-a+simd -mtune=cortex-a75";;
     esac
+    [[ -f "$NEUROMORPHIC_CORES_FILE" ]] && {
+        export NEUROSYNAPTIC_ENABLED=true
+        echo "NEUROSYNAPTIC_ENABLED=true" >> "$ENV_FILE"
+    }
 }
 
 handle_prime_gap() {
@@ -143,7 +148,7 @@ handle_prime_gap() {
 import mpmath
 mpmath.mp.dps = $MP_DPS
 x = mpmath.mpf('$x')
-print(float(mpmath.li(x) - x))"
+print(float(mpmath.li(x) - x))")
     
     if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
         quantum_emulator --emergency
@@ -497,7 +502,7 @@ enforce_riemann_bounds() {
 import mpmath
 mpmath.mp.dps = $MP_DPS
 x = mpmath.mpf('$prime_count')
-print(abs(mpmath.li(x) - x))")
+print(abs(mpmath.li(x) - x))"
     local allowed_error=$(calculate_riemann_error "$prime_count")
 
     if python3 -c "
@@ -993,7 +998,7 @@ p = mpmath.mpf('$p')
 z = zeta_DbZ(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p)))
 with open('$LEECH_LATTICE', 'r') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
-v_k = min(lattice, key=lambda v: abs(complex(v[0], v[1]) - complex(z.real,z.imag)))
+v_k = min(lattice, key=lambda v: abs(complex(v[0],v[1]) - complex(z.real,z.imag)))
 if abs(complex(v_k[0],v_k[1]) - complex(z.real,z.imag)) > 0.1:
     new_edges = [(p, (p + v_k[i])/mpmath.mpf(2)) for i in range(3)]
     with open('$DELAUNAY_REGISTER', 'a') as f:
@@ -1991,3 +1996,4 @@ else
     echo "[∆∑I] This script must be executed directly" >&2
     exit 1
 fi
+#Natalia Tanyatia 💎
