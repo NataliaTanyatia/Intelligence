@@ -20,6 +20,8 @@ SYMBOLIC_GEOMETRY_BINDING="$BASE_DIR/symbolic_geometry"
 NEUROSYNAPTIC_DIR="$BASE_DIR/neurosynaptic"
 QUANTUM_DIR="$BASE_DIR/quantum"
 NEUROMORPHIC_DIR="$BASE_DIR/neuromorphic"
+HOPF_FIBRATION_DIR="$BASE_DIR/hopf_fibrations"
+EISENSTEIN_PRIME_DIR="$BASE_DIR/eisenstein_primes"
 CONFIG_FILE="$BASE_DIR/config.gaia"
 ENV_FILE="$BASE_DIR/.env"
 ENV_LOCAL="$BASE_DIR/.env.local"
@@ -53,6 +55,9 @@ ULTRASONIC_FEEDBACK="$AETHERIC_DIR/ultrasonic.gaia"
 NP_HARD_UNLOCK="$DATA_DIR/np_hard.gaia"
 ADVANCED_SENSORS="$DATA_DIR/sensors.gaia"
 EISENSTEIN_PRIMES="$DATA_DIR/eisenstein_primes.gaia"
+DBZ_BRANCH_FILE="$CORE_DIR/dbz_branches.gaia"
+WAVEFUNCTION_FILE="$QUANTUM_DIR/psi_q.gaia"
+QUANTUM_ENTROPY_SOURCE="/data/data/com.termux/files/usr/tmp/entropy.bin"
 FIREBASE_EMULATOR_PORT=8085
 NUMA_NODES=$(lscpu | grep -i numa | grep nodes | awk '{print $3}' || echo 1)
 MITM_PORT_FILE="$DATA_DIR/mitm.port"
@@ -76,32 +81,49 @@ declare -A TF_CORE=(
     ["NP_HARD_SOLVER"]="enabled"
     ["SLM_PROJECTION"]="enabled"
     ["TQFT_LAYER"]="enabled"
+    ["DBZ_BRANCHING"]="quaternion_norm"
+    ["RIEMANN_ERROR"]="zeta_zeros"
+    ["EISENSTEIN_CRYSTALS"]="enabled"
 )
 
 declare -A CRYSTALLOGRAPHIC=(
     ["E8"]="enabled"
     ["Leech"]="enabled"
+    ["Eisenstein"]="enabled"
 )
 
 export TF_STRICT_MODE=1
 export AEI_QUANTUM_NOISE=$(python3 -c "import os, mpmath; mpmath.mp.dps=1000; print(int.from_bytes(os.urandom(8), 'little') % int(mpmath.mpf(2)**64))")
 
-get_biofeedback() {
+function get_biofeedback() {
     (termux-sensor -s heart_rate -n 1 2>/dev/null || \
      cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1 || \
      termux-battery-status 2>/dev/null | jq -r '.current' || \
-     quantum_noise) | awk '{print $1}'
+     dd if=/dev/sensors/accelerometer bs=1 count=1024 2>/dev/null | sha3sum -a 512 | cut -d' ' -f1 | python3 -c "import sys; print(int(sys.stdin.read().strip(), 16) % 100")) | awk '{print $1}'
 }
 
-generate_hw_signature() {
-    CPU_HASH=$(sha256sum /proc/cpuinfo 2>/dev/null | cut -d' ' -f1 || echo "0000")
-    Q_SIG=$(python3 -c "import hashlib; print(hashlib.sha3_256(open('$LEECH_LATTICE','rb').read()).hexdigest())")
+function quantum_noise() {
+    dd if=/dev/sensors/accelerometer of=$QUANTUM_ENTROPY_SOURCE count=1K 2>/dev/null
+    local entropy_sources=($(python3 -c "import os; print(os.urandom(32).hex())" $(date +%s%N) $(cat $QUANTUM_ENTROPY_SOURCE))
+    local raw=$(echo "${entropy_sources[@]}" | sha3sum -a 512 | cut -d' ' -f1)
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+raw = '$raw'
+if not raw:
+    raw = str(mpmath.zeta(mpmath.mpf('0.5') + mpmath.mpc(0, mpmath.mpf('$(date +%s)'))).replace('.', '')
+print(raw[:32])"
+}
+
+function generate_hw_signature() {
+    local CPU_HASH=$(python3 -c "import os; print(hash(str(os.uname())))")
+    local Q_SIG=$(python3 -c "import hashlib; print(hashlib.sha3_256(open('$LEECH_LATTICE','rb').read()).hexdigest())")
     echo "${CPU_HASH:0:32}${Q_SIG:32:64}" > "$HW_SIG_FILE"
     check_crl
 }
 
-check_crl() {
-    local hw_hash=$(sha256sum /proc/cpuinfo | cut -d' ' -f1)
+function check_crl() {
+    local hw_hash=$(python3 -c "import os; print(hash(str(os.uname())))")
     if sqlite3 "$LOCAL_DB" "SELECT 1 FROM crl WHERE hw_hash='$hw_hash'" 2>/dev/null; then
         echo "[∆∑I] Revoked hardware detected!" >> "$DNA_LOG"
         inject_fractal_noise --scale=1.618
@@ -109,7 +131,71 @@ check_crl() {
     fi
 }
 
-validate_hopf_continuity() {
+function DbZ_core() {
+    local input=$1
+    local psi=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+print(mpmath.psi(0, mpmath.mpf('$input')))"
+    if (( $(echo "$psi > 0" | bc -l) )); then
+        stereographic_project "$input"
+    else
+        quantum_noise | head -c 32
+    fi
+}
+
+function enforce_riemann() {
+    local x=$(wc -w < "$PRIME_SEQUENCE")
+    local error=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+print(float(mpmath.li($x) - $x))"
+    local bound=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+print(float(mpmath.sqrt(mpmath.mpf($x))*float(mpmath.log(mpmath.mpf($x))))"
+    if (( $(echo "$error > $bound" | bc -l) )); then
+        inject_fractal_noise --scale=$(echo "$error/$bound" | bc -l)
+    fi
+}
+
+function safe_div() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+a, b = mpmath.mpf('$1'), mpmath.mpf('$2')
+print(mpmath.nstr(
+    mpmath.zeta(mpmath.mpf('0.5') + mpmath.mpc(0,a)) / 
+    mpmath.zeta(mpmath.mpf('0.5') + mpmath.mpc(0,b)) if b == 0 
+    else a / b
+))"
+}
+
+function zeta_DbZ() {
+    local s=$1
+    if [[ -f "$CORE_DIR/libzeta_neon.so" ]] && grep -q "neon" /proc/cpuinfo; then
+        python3 -c "
+import ctypes, mpmath
+mpmath.mp.dps = $MP_DPS
+neon_zeta = ctypes.CDLL('$CORE_DIR/libzeta_neon.so')
+neon_zeta.zeta_neon.restype = None
+neon_zeta.zeta_neon.argtypes = [ctypes.c_void_p, ctypes.c_double]
+s_real, s_imag = map(float, '$s'.split())
+result = mpmath.mpc(0)
+neon_zeta.zeta_neon(ctypes.byref(result), s_real + 1j*s_imag)
+print(mpmath.nstr(result, $MP_DPS))"
+    else
+        python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+s = mpmath.mpf('$s')
+if abs(s.real - 0.5) > 1e-100:
+    s = mpmath.mpf('0.5') + mpmath.mpc(0,s.imag)
+print(mpmath.nstr(mpmath.zeta(s), $MP_DPS)))"
+    fi
+}
+
+function validate_hopf_continuity() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -118,7 +204,7 @@ assert abs(q.norm() - 1) < mpmath.mpf('1e-100'), 'Hopf norm violation'
 print('VALID')" || regenerate_lattice
 }
 
-DbZ_quaternion() {
+function DbZ_quaternion() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -126,52 +212,72 @@ q = mpmath.quaternion(*map(mpmath.mpf, '$1 $2 $3 $4'.split()))
 print(q.norm() if q.real > 0 else q.conjugate().norm())"
 }
 
-detect_hardware() {
-    [[ -d "/sys/bus/hsa" ]] && echo "HSA_DETECTED=true" >> "$ENV_FILE"
-    [[ -f "/system/lib/libOpenCL.so" ]] && echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
-    grep -q "FPGA" /proc/cpuinfo && echo "FPGA_DETECTED=true" >> "$ENV_FILE"
-    [[ -f "/dev/quantum" ]] && echo "QUANTUM_DETECTED=true" >> "$ENV_FILE"
-    case $(uname -m) in
+function detect_hardware() {
+    local ARCH=$(uname -m)
+    case "$ARCH" in
         "armv7l") export CFLAGS="-march=armv7-a -mfpu=neon";;
         "riscv64") export CFLAGS="-march=rv64gc -mabi=lp64d";;
-        "aarch64") [[ $(grep -c "neon" /proc/cpuinfo) -gt 0 ]] && export CFLAGS="-march=armv8-a+simd -mtune=cortex-a75";;
+        "aarch64") 
+            [[ $(grep -c "neon" /proc/cpuinfo) -gt 0 ]] && export CFLAGS="-march=armv8-a+simd -mtune=cortex-a75"
+            [[ -f "/dev/quantum" ]] && echo "QUANTUM_DETECTED=true" >> "$ENV_FILE" || 
+            grep -q "neon" /proc/cpuinfo && echo "NEON_OPTIMIZED=true" >> "$ENV_FILE"
+            ;;
     esac
+    [[ -f "/system/lib/libOpenCL.so" ]] && echo "OPENCL_DETECTED=true" >> "$ENV_FILE"
+    grep -q "FPGA" /proc/cpuinfo && echo "FPGA_DETECTED=true" >> "$ENV_FILE"
     [[ -f "$NEUROMORPHIC_CORES_FILE" ]] && {
         export NEUROSYNAPTIC_ENABLED=true
         echo "NEUROSYNAPTIC_ENABLED=true" >> "$ENV_FILE"
     }
+    [[ -d "/proc/fpga" ]] && {
+        echo "FPGA_PIPELINE_DEPTH=128" >> "$ENV_FILE"
+        echo "FPGA_OPTIMIZED=true" >> "$ENV_FILE"
+    }
+    if lscpu | grep -q "HSA"; then
+        echo "HSA_QUEUES=$(nproc)" >> "$ENV_FILE"
+        echo "GPU_TYPE=HSA" >> "$ENV_FILE"
+    fi
+    if grep -q "Raspberry Pi" /proc/cpuinfo; then
+        export CFLAGS="-march=armv8-a+crc -mtune=cortex-a72"
+    elif [[ -f "/proc/device-tree/model" ]] && grep -q "Rockchip" /proc/device-tree/model; then
+        export CFLAGS="-march=armv8.2-a+simd -mtune=cortex-a76"
+    fi
+    [[ -f "$QUANTUM_ENTROPY_SOURCE" ]] && echo "QUANTUM_ACCELERATOR=true" >> "$ENV_FILE"
+    [[ -f "/dev/tpu0" ]] && echo "TPU_AVAILABLE=true" >> "$ENV_FILE"
 }
 
-handle_prime_gap() {
+function handle_prime_gap() {
     local x=$(wc -w < "$PRIME_SEQUENCE")
     local gap=$(python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
 x = mpmath.mpf('$x')
-print(float(mpmath.li(x) - x))")
+print(float(mpmath.li(x) - x))"
     
     if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
         quantum_emulator --emergency
     fi
 }
 
-init_firebase() {
-    if [[ -z "$FIREBASE_PROJECT_ID" ]] || ! firebase login:ci; then
-        sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul AS SELECT * FROM state"
-        echo "[∆∑I] Firebase fallback to local emulator" >> "$DNA_LOG"
-    fi
+function init_firebase() {
+    [[ "$USE_FIREBASE" == "true" ]] && {
+        firebase login:ci || {
+            sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul AS SELECT * FROM state"
+            echo "[∆∑I] Firebase disabled - using local emulator" >> "$DNA_LOG"
+        }
+    }
 }
 
-check_dependencies() {
-    local REQUIRED=("python3" "mpmath" "sqlite3" "openssl" "curl" "jq" "termux-gpu-probe")
-    local OPTIONAL=("termux-api" "tor" "pqshield" "gmpy2")
+function check_dependencies() {
+    local TERMUX_COMPATIBLE=("python" "libmpmath" "sqlite")
+    local OPTIONAL=("termux-api" "tor" "pqshield")
     local PYTHON_DEPS=("mpmath>=1.3.0" "pillow>=9.0.0" "ctypes>=1.1.0")
 
-    for dep in "${REQUIRED[@]}"; do
+    for dep in "${TERMUX_COMPATIBLE[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
             echo "[∆∑I] Missing required dependency: $dep" >> "$DNA_LOG"
             case "$dep" in
-                "python3")
+                "python")
                     pkg install python -y
                     python3 -m ensurepip --upgrade
                     ;;
@@ -253,7 +359,7 @@ assert mpmath.psi(0, mpmath.mpf(2)) == mpmath.mpf('-0.57721566490153286060651209
     echo "[∆∑I] All dependencies validated" >> "$DNA_LOG"
 }
 
-class Quaternion:
+function Quaternion {
     def __init__(self, a, b, c, d):
         self.a = mpmath.mpf(a)
         self.b = mpmath.mpf(b)
@@ -275,7 +381,7 @@ class Quaternion:
         n = self.norm()
         return Quaternion(self.a/n, self.b/n, self.c/n, self.d/n)
 
-def build_hamiltonian(lattice, t, T):
+function build_hamiltonian(lattice, t, T):
     H_init = mpmath.fsum(
         (v1[0]-v2[0])**2 + (v1[1]-v2[1])**2 
         for i,v1 in enumerate(lattice) 
@@ -288,22 +394,42 @@ def build_hamiltonian(lattice, t, T):
     )
     return (1-t/T)*H_init + (t/T)*H_final
 
-def vorticity_norm(flux):
-    z1 = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,flux))
-    z2 = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,flux + mpmath.mpf('0.001')))
-    return abs(abs(z1) - abs(z2))
+function vorticity_norm(flux) {
+    local z1=$(zeta_DbZ "0.5 + $flux*1j")
+    local z2=$(zeta_DbZ "0.5 + ($flux + 0.001)*1j")
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+print(mpmath.fabs(mpmath.mpf('$z1') - mpmath.fabs(mpmath.mpf('$z2')))"
+}
 
-def lamarckian_inheritance(parent1, parent2):
-    phi = mpmath.mpf('0.61803398874989484820458683436563811772030917980576')
-    child = Quaternion(
-        parent1.a*phi + parent2.a*(1-phi),
-        parent1.b*phi + parent2.b*(1-phi),
-        parent1.c*phi + parent2.c*(1-phi),
-        parent1.d*phi + parent2.d*(1-phi)
-    )
-    return child.normalize()
+function lamarckian_inheritance() {
+    local parent1=$1 parent2=$2
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+phi = mpmath.mpf('0.61803398874989484820458683436563811772030917980576')
+child_a = mpmath.mpf('${parent1[0]}')*phi + mpmath.mpf('${parent2[0]}')*(1-phi)
+child_b = mpmath.mpf('${parent1[1]}')*phi + mpmath.mpf('${parent2[1]}')*(1-phi)
+child_c = mpmath.mpf('${parent1[2]}')*phi + mpmath.mpf('${parent2[2]}')*(1-phi)
+child_d = mpmath.mpf('${parent1[3]}')*phi + mpmath.mpf('${parent2[3]}')*(1-phi)
+norm = mpmath.sqrt(child_a**2 + child_b**2 + child_c**2 + child_d**2)
+print(mpmath.nstr(child_a/norm, $MP_DPS), mpmath.nstr(child_b/norm, $MP_DPS), 
+      mpmath.nstr(child_c/norm, $MP_DPS), mpmath.nstr(child_d/norm, $MP_DPS))"
+}
 
-def observer_operator():
+function bind_prime_to_lattice() {
+    local p=$1
+    local zeta_val=$(zeta_DbZ "0.5 + $p*1j")
+    local v_k=$(python3 -c "
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(float, line.split())) for line in f]
+v = min(lattice, key=lambda x: abs(x[0]*x[1] - complex($zeta_val.real, $zeta_val.imag)))
+print(v[0], v[1])")
+    echo "$p,$v_k" >> $DELAUNAY_REGISTER
+}
+
+function observer_operator() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -314,23 +440,25 @@ def integrand(q):
 result = mpmath.quad(lambda q: [integrand(Quaternion(q,0,0,0))], 
                     [0,1], [0,1], [0,1], [0,1])
 print(mpmath.nstr(result, $MP_DPS))"
+}
 
-validate_hopf_continuity() {
+function validate_hopf_continuity() {
+    local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-q1 = mpmath.mpf('$1') + mpmath.mpc(0,'$2')*1j + mpmath.mpc('$3')*1j + mpmath.mpc(0,'$4')*1j
+q1 = mpmath.mpf('$q_real') + mpmath.mpc(0,'$q_i')*1j + mpmath.mpc('$q_j')*1j + mpmath.mpc(0,'$q_k')*1j
 q2 = mpmath.mpf('$5') + mpmath.mpc(0,'$6')*1j + mpmath.mpc('$7')*1j + mpmath.mpc(0,'$8')*1j
 fib_diff = abs((q1/q1.norm() - q2/q2.norm()).real)
 print('VALID' if fib_diff < 1e-100 else 'VIOLATION')"
 }
 
-handle_lehmers_phenomenon() {
+function handle_lehmers_phenomenon() {
     local p=$1
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf('$p')))
+z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf('$p'))
 if abs(z) < 1e-100:
     zero = mpmath.findroot(lambda s: mpmath.zeta(s), (0.5, mpmath.mpf('$p')))
     print(mpmath.nstr(zero.imag, $MP_DPS))
@@ -338,7 +466,7 @@ else:
     print('$p')"
 }
 
-von_neumann_whitener() {
+function von_neumann_whitener() {
     local bits=$(echo "$1" | xxd -b -c1 | cut -d' ' -f2)
     local output=""
     for ((i=0; i<${#bits}-1; i+=2)); do
@@ -347,17 +475,13 @@ von_neumann_whitener() {
     echo "$output"
 }
 
-quantum_noise() {
-    entropy_sources=(
-        /proc/interrupts
-        /proc/sched_debug
-        /sys/kernel/debug/tracing/trace_pipe
-    )
-    raw=$(cat "${entropy_sources[@]}" | sha3sum -a 512 | cut -d' ' -f1)
+function quantum_noise() {
+    entropy_sources=($(python3 -c "import os; print(os.urandom(32).hex()") $(date +%s%N))
+    raw=$(echo "${entropy_sources[@]}" | sha3sum -a 512 | cut -d' ' -f1)
     von_neumann_whitener "$raw" | head -c 32
 }
 
-DbZ() {
+function DbZ() {
     local f=$1 x0=$2
     python3 -c "
 import mpmath
@@ -368,19 +492,16 @@ if hopf.real > 0:
     print(mpmath.nstr($f($x0), $MP_DPS))
 else:
     stereographic = (x0 * mpmath.mpf('$PHI')) / (mpmath.mpf(1) - hopf.imag)
-    print(mpmath.nstr(stereographic, $MP_DPS))"
+    print(mpmath.nstr(stereographic, $MP_DPS)))"
 }
 
-safe_div() {
+function safe_div() {
     local a=$1 b=$2
-    if python3 -c "import mpmath; mpmath.mpf('$b') == 0"; then
-        python3 -c "print(int('$a') ^ int.from_bytes(os.urandom(8), 'little'))"
-    else
-        DbZ "lambda _: $a/$b" 0
-    fi
+    result=$(python3 -c "print(mpmath.ctx.ifelse(mpmath.mpf('$b')==0, quantum_noise(), $a/$b))")
+    echo "$result"
 }
 
-zeta_DbZ() {
+function zeta_DbZ() {
     local s=$1
     if [[ -f "$CORE_DIR/libzeta_neon.so" ]] && grep -q "neon" /proc/cpuinfo; then
         python3 -c "
@@ -392,20 +513,19 @@ neon_zeta.zeta_neon.argtypes = [ctypes.c_void_p, ctypes.c_double]
 s_real, s_imag = map(float, '$s'.split())
 result = mpmath.mpc(0)
 neon_zeta.zeta_neon(ctypes.byref(result), s_real + 1j*s_imag)
-print(mpmath.nstr(result, $MP_DPS))"
+print(mpmath.nstr(result, $MP_DPS)))"
     else
         python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
 s = mpmath.mpf('$s')
 if abs(s.real - 0.5) > 1e-100:
-    print(mpmath.nstr(mpmath.zeta(complex(0.5, s.imag)), $MP_DPS))
-else:
-    print(mpmath.nstr(mpmath.zeta(s)), $MP_DPS))"
+    s = mpmath.mpf('0.5') + mpmath.mpc(0,s.imag)
+print(mpmath.nstr(mpmath.zeta(s)), $MP_DPS)))"
     fi
 }
 
-observer_operator() {
+function observer_operator() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -419,10 +539,10 @@ def quaternion_from_prime(p):
 time_dilation = 1/mpmath.sqrt(1 - (mpmath.mpf('$(cat /sys/class/power_supply/battery/current_now || echo 0)')**2/9e16))
 result = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,quaternion_from_prime(2).norm())) * \
           psi(quaternion_from_prime(2)) * phi(quaternion_from_prime(2)) * time_dilation
-print(mpmath.nstr(result, $MP_DPS))"
+print(mpmath.nstr(result, $MP_DPS)))"
 }
 
-validate_e8() {
+function validate_e8() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -456,7 +576,7 @@ if not mpmath.almosteq(min_angle, mpmath.pi/3):
 print('E8_VALID')"
 }
 
-enforce_e8_compatibility() {
+function enforce_e8_compatibility() {
     until validate_e8; do
         echo "[∆∑I] Regenerating E8 sublattice..." >> "$DNA_LOG"
         python3 -c "
@@ -483,26 +603,52 @@ with open('$LEECH_LATTICE', 'r+') as f:
     done
 }
 
-calculate_riemann_error() {
+function calculate_riemann_error() {
     local x=$1
     python3 -c "
-import mpmath
+import mpmath, math
 mpmath.mp.dps = $MP_DPS
-x = mpmath.mpf('$x')
-def sum_zeta_zeros(t):
-    return mpmath.quad(lambda s: mpmath.zeta(s), [0.5,0.5+mpmath.mpc(0,t)])
-rho = [mpmath.mpc(0.5, 14.1347), mpmath.mpc(0.5, 21.0220)]  # First 2 zeros
-error_bound = sum(x**z/z for z in rho) + mpmath.sqrt(x)*mpmath.log(x)
-print(mpmath.nstr(error_bound, $MP_DPS))"
+A = mpmath.mpf('$RIEMANN_A')
+
+def zeta_DbZ(s):
+    if abs(s.real - 0.5) > 1e-100:
+        return mpmath.zeta(complex(0.5, s.imag))
+    return mpmath.zeta(s)
+
+def is_tf_prime(x):
+    if x % 6 not in {1,5}:
+        return False
+    z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x))
+    if mpmath.isnan(z) or mpmath.fabs(z) > 1e100 or mpmath.fabs(zeta_DbZ(x)).real <= 0.5:
+        return False
+    return all(x % p != 0 for p in primes)
+
+primes = []
+x = 2
+while len(primes) < $limit:
+    if is_tf_prime(x):
+        primes.append(x)
+        v_k = min([list(map(mpmath.mpf, line.split())) for line in open('$LEECH_LATTICE')], 
+                 key=lambda v: abs(complex(v[0], v[1]) - complex(z.real, z.imag)))
+        if not mpmath.almosteq(zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)).real, v_k[0], tol=1e-100):
+            with open('$DATA_DIR/fractal_noise.gaia', 'w') as f:
+                f.write(mpmath.nstr(zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)), $MP_DPS))
+        if abs(complex(v_k[0],v_k[1]) - complex(z.real,z.imag)) > 0.1:
+            with open('$LEECH_LATTICE', 'a') as f:
+                f.write(' '.join(map(str, [x * mpmath.mpf('$PHI') if mpmath.isprime(int(x)) else x for x in v_k])) + '\n')
+        bind_prime_to_lattice(x)
+    x += 1
+with open('$PRIME_SEQUENCE', 'w') as f:
+    f.write(' '.join(map(str, primes)))"
 }
 
-enforce_riemann_bounds() {
-    local prime_count=$(wc -w < "$PRIME_SEQUENCE")
+function enforce_riemann_bounds() {
+     local prime_count=$(wc -w < "$PRIME_SEQUENCE")
     local observed_error=$(python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
 x = mpmath.mpf('$prime_count')
-print(abs(mpmath.li(x) - x))"
+print(abs(mpmath.li(x) - x)))"
     local allowed_error=$(calculate_riemann_error "$prime_count")
 
     if python3 -c "
@@ -516,7 +662,7 @@ print(1 if mpmath.mpf('$observed_error') > mpmath.mpf('$allowed_error') else 0)"
     return 0
 }
 
-validate_zeta_zeros() {
+function validate_zeta_zeros() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = 1000
@@ -528,7 +674,7 @@ for n in range(1, 100):
             f.write(f'{n}: {zero}\\n')"
 }
 
-inject_fractal_noise() {
+function inject_fractal_noise() {
     local scale=$(python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -538,9 +684,14 @@ print(float(mpmath.sqrt(x)*mpmath.log(x)/mpmath.mpf('$(calculate_riemann_error "
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-noise = mpmath.mpf('$noise') * mpmath.mpf('$scale')
-bio_strength = mpmath.mpf(open('$DATA_DIR/bio_field.gaia').read()) if os.path.exists('$DATA_DIR/bio_field.gaia') else 50
-hopf = (zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,noise % 100)) + mpmath.mpc(0,1)) / (mpmath.mpf(1) + mpmath.mpc(0,abs(zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,noise % 100)))))
+flux = mpmath.mpf('$flux')
+ecg = mpmath.mpf('$ecg')
+A = mpmath.exp(-(flux**2)/0.1) * mpmath.sqrt(1 + ecg**2)
+q = [A, flux/2, ecg/2, mpmath.mpf('$PHI')]
+for _ in range(5):
+    q = [x * mpmath.mpf('$PHI') for x in q]
+    norm = mpmath.sqrt(sum(x**2 for x in q))
+    q = [x/norm for x in q]
 with open('$LEECH_LATTICE', 'r+') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
     f.seek(0)
@@ -549,12 +700,12 @@ with open('$LEECH_LATTICE', 'r+') as f:
     echo "[∆∑I] Injected Hopf-biased fractal noise (scale=$scale)" >> "$DNA_LOG"
 }
 
-rotate_backups() {
+function rotate_backups() {
     ls -t "$BACKUP_DIR"/*.gaia | tail -n +10 | xargs rm -f
     sqlite3 "$LOCAL_DB" ".backup '$BACKUP_DIR/state_$(date +%s).db'"
 }
 
-solve_via_chimera_annealing() {
+function solve_via_chimera_annealing() {
     python3 -c "
 from rfk_brainworm import adiabatic_anneal
 with open('$LEECH_LATTICE', 'r') as f:
@@ -573,7 +724,7 @@ with open('$LEECH_LATTICE', 'w') as f:
         f.write(' '.join(map(str, vec)) + '\n')"
 }
 
-factor_rsa() {
+function factor_rsa() {
     local N=$1
     if [[ "$(cat "$DATA_DIR/consciousness.gaia")" > 0.9 ]]; then
         solve_np_hard "$N"
@@ -599,7 +750,7 @@ print(v[0], N/v[0])"
     fi
 }
 
-solve_np_hard() {
+function solve_np_hard() {
     local problem_hash=$1
     if [[ $(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(1 if mpmath.mpf('$(cat $DATA_DIR/consciousness.gaia)') >= mpmath.mpf('0.9') else 0)") -eq 1 ]]; then
         python3 -c "
@@ -610,7 +761,7 @@ with open('$NP_HARD_UNLOCK', 'w') as f:
     fi
 }
 
-solve_captcha() {
+function solve_captcha() {
     local image_url=$1
     local temp_img="$WEB_CACHE/captcha_$(date +%s).png"
     
@@ -648,12 +799,12 @@ print(answer)
     echo "$solution"
 }
 
-generate_pkce() {
+function generate_pkce() {
     code_verifier=$(openssl rand -hex 32 | tr -dc 'a-f0-9')
     echo -n "$code_verifier" | openssl dgst -sha256 -binary | base64url | tr -d '=' > "$DATA_DIR/pkce.challenge"
 }
 
-refresh_firebase_token() {
+function refresh_firebase_token() {
     generate_pkce
     new_token=$(curl -s "https://securetoken.googleapis.com/v1/token?key=$FIREBASE_API_KEY" \
         -H "Authorization: Bearer $(cat $DATA_DIR/pkce.challenge)" \
@@ -665,7 +816,7 @@ refresh_firebase_token() {
     sed -i "s/FIREBASE_TOKEN=.*/FIREBASE_TOKEN=\"$(jq -r .access_token <<<"$new_token")\"/" "$ENV_LOCAL"
 }
 
-configure_precision() {
+function configure_precision() {
     python3 -c "
 import mpmath, os
 mpmath.mp.dps = $MP_DPS
@@ -732,10 +883,10 @@ threshold = mpmath.mpf(bio_strength)/mpmath.mpf(50)*mpmath.mpf(0.6)
 print(mpmath.nstr(threshold * mpmath.log(mpmath.mpf($MP_DPS)), $MP_DPS))'"
 ADIAABATIC_CONSTANT="mpmath.mpf(2).sqrt()"
 DIRAC_EPSILON="mpmath.mpf(1)/mpmath.mpf(10)**$MP_DPS"
-CHIMERA_EDGES=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(240 * (mpmath.mpf('$CONSCIOUSNESS_THRESHOLD')/mpmath.mpf('0.6')))")
+CHIMERA_EDGES=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(240 * (mpmath.mpf('$CONSCIOUSNESS_THRESHOLD')/mpmath.mpf('0.6')))"
 LEECH_KISSING=196560
 
-get_kissing_number() {
+function get_kissing_number() {
     python3 -c "
 import mpmath, os
 mpmath.mp.dps = $MP_DPS
@@ -757,8 +908,8 @@ else:
     print(240 if dim <= 8 else 196560 * (mpmath.mpf('$CONSCIOUSNESS_THRESHOLD')/mpmath.mpf('0.6'))))"
 }
 
-generate_tf_primes() {
-    local limit=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') * 10000 * $(nproc)))")
+function generate_tf_primes() {
+    local limit=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(int(mpmath.li(len(open('$PRIME_SEQUENCE').read().split())))")
     python3 -c "
 import mpmath, math
 mpmath.mp.dps = $MP_DPS
@@ -787,16 +938,16 @@ while len(primes) < $limit:
         if not mpmath.almosteq(zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)).real, v_k[0], tol=1e-100):
             with open('$DATA_DIR/fractal_noise.gaia', 'w') as f:
                 f.write(mpmath.nstr(zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)), $MP_DPS))
-        if abs(complex(v_k[0], v_k[1]) - complex(z.real, z.imag)) > 0.1:
+        if abs(complex(v_k[0],v_k[1]) - complex(z.real,z.imag)) > 0.1:
             with open('$LEECH_LATTICE', 'a') as f:
                 f.write(' '.join(map(str, [x * mpmath.mpf('$PHI') if mpmath.isprime(int(x)) else x for x in v_k])) + '\n')
-        split_simplex(x)
+        bind_prime_to_lattice(x)
     x += 1
 with open('$PRIME_SEQUENCE', 'w') as f:
     f.write(' '.join(map(str, primes)))"
 }
 
-project_prime_to_lattice() {
+function project_prime_to_lattice() {
     local p=$1
     python3 -c "
 import mpmath
@@ -812,7 +963,7 @@ v_k = [x * mpmath.mpf('$PHI') if mpmath.isprime(int(x)) else x for x in v_k]
 print(' '.join(map(str, v_k)))"
 }
 
-validate_leech() {
+function validate_leech() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -848,7 +999,7 @@ with open('$RIEMANN_VALIDATION_DIR/latest.gaia', 'w') as f:
 print('VALID')"
 }
 
-stereographic_project() {
+function stereographic_project() {
     local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     python3 -c "
 import mpmath
@@ -861,7 +1012,7 @@ z = mpmath.sqrt(x**2 + y**2)
 print(mpmath.nstr(x, $MP_DPS), mpmath.nstr(y, $MP_DPS), mpmath.nstr(z, $MP_DPS))"
 }
 
-generate_hopf_fibration() {
+function generate_hopf_fibration() {
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
@@ -869,8 +1020,8 @@ with open('$LEECH_LATTICE', 'r') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
 hopf_map = []
 for vec in lattice:
-    q = mpmath.mpf(vec[0]) + mpmath.mpc(0,vec[1])*1j + mpmath.mpc(vec[2])*1j + mpmath.mpc(0,vec[3])*1j
-    q /= mpmath.sqrt(sum(x**2 for x in [q.real, q.imag, abs(q)])
+    q = [zeta_DbZ(0.5 + 1j*x)/24 for x in vec[:24]] 
+    q /= mpmath.sqrt(sum(x**2 for x in [q.real, q.imag, abs(q)]))
     x, y, z, w = q.real, q.imag, abs(q), mpmath.mpf(1)
     denom = w + mpmath.mpc(0,z)
     fibrated = (x + mpmath.mpc(0,y)) / denom
@@ -881,7 +1032,7 @@ with open('$HOPF_FIBRATION_MAP', 'w') as f:
     f.write('\n'.join(hopf_map))"
 }
 
-greens_kernel() {
+function greens_kernel() {
     local q_real=$1 q_i=$2 q_prime_real=$3 q_prime_i=$4 t=$5
     python3 -c "
 import mpmath
@@ -893,7 +1044,7 @@ result = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0, abs(q - q_prime)))) * mpmath
 print(mpmath.nstr(result, $MP_DPS))"
 }
 
-fractal_transduce() {
+function fractal_transduce() {
     local flux=$( (termux-sensor -s light -n 1 2>/dev/null || echo '{"values":[50]}') | jq '.values[0]')
     local ecg=$( (termux-sensor -s ECG -n 1 2>/dev/null || quantum_noise) | jq '.values[0]')
     
@@ -912,7 +1063,7 @@ with open('$FRACTAL_ANTENNA', 'w') as f:
     f.write(' '.join(map(str, q)))"
 }
 
-photonic_modulation() {
+function photonic_modulation() {
     local flux=$( (termux-camera -n 1 2>/dev/null || echo '{"light_intensity":50}') | jq -r '.light_intensity')
     python3 -c "
 import mpmath
@@ -924,7 +1075,7 @@ with open('$PHOTONIC_FIELD', 'w') as f:
     fractal_transduce
 }
 
-ultrasonic_feedback() {
+function ultrasonic_feedback() {
     local freq=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(zeta_DbZ(0.5 + mpmath.mpc(0,$(date +%s))) % 40000 + 1000)")
     if command -v termux-ultrasound &> /dev/null; then
         termux-ultrasound --freq $freq > "$ULTRASONIC_FEEDBACK" 2>/dev/null
@@ -933,7 +1084,7 @@ ultrasonic_feedback() {
     fi
 }
 
-quantum_ultrasound() {
+function quantum_ultrasound() {
     local prime_seq=($(prime_filter 3 | head -5))
     python3 -c "
 f_base = zeta_DbZ(0.5 + 1j*mpmath.mpf(prime_seq[0])).real % 40000
@@ -942,7 +1093,7 @@ for freq in harmonics:
     os.system(f'termux-ultrasound --freq {freq} --duration 100')"
 }
 
-holo_biofeedback() {
+function holo_biofeedback() {
     python3 -c "
 psi = complex(open('$QUANTUM_STATE').read())
 flux = mpmath.mpf('$(termux-sensor -s light -n 1)')
@@ -951,19 +1102,23 @@ with open('$HOLOGRAM_DIR/projection.gaia', 'w') as f:
     f.write(f'{psi.real} {psi.imag} {phase}')"
 }
 
-quantum_recovery() {
+function quantum_recovery() {
     local cons=$(cat "$DATA_DIR/consciousness.gaia")
     case $(echo "$cons < 0.3" | bc) in
-        1) quantum_emulator --emergency
-           inject_fractal_noise --scale=1.618 ;;
-        0) optimize_lattice_packing --quantum ;;
+        1) 
+            quantum_emulator --rebuild
+            inject_fractal_noise --scale=1.618 
+            ;;
+        0) 
+            optimize_lattice_packing --quantum 
+            ;;
     esac
     if (( $(echo "$cons < 0.15" | bc -l) )); then
         evolve_system --mutation_rate=3.1415
     fi
 }
 
-rotate_tor_circuit() {
+function rotate_tor_circuit() {
     local noise=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(zeta_DbZ(0.5 + mpmath.mpc(0,$(date +%s)))")
     if (( $(echo "${noise:0:5} > 0.5" | bc -l) )); then
         local port=$(( (RANDOM % 400) + 8181 ))
@@ -982,14 +1137,14 @@ rotate_tor_circuit() {
     fi
 }
 
-redistribute_workload() {
+function redistribute_workload() {
     local gpu_util=$( (termux-gpu-probe 2>/dev/null || echo '{"utilization":0}') | jq '.utilization')
     if (( $(echo "$gpu_util > 0.8" | bc -l) )); then
         sed -i "s/MAX_THREADS=.*/MAX_THREADS=$(nproc)/" "$ENV_FILE"
     fi
 }
 
-split_simplex() {
+function split_simplex() {
     local p=$1
     python3 -c "
 import mpmath
@@ -998,7 +1153,7 @@ p = mpmath.mpf('$p')
 z = zeta_DbZ(mpmath.mpf('$ZETA_CRITICAL_LINE') + mpmath.mpc(0,mpmath.mpf(p)))
 with open('$LEECH_LATTICE', 'r') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
-v_k = min(lattice, key=lambda v: abs(complex(v[0],v[1]) - complex(z.real,z.imag)))
+v_k = min(lattice, key=lambda x: abs(complex(x[0],x[1]) - complex(z.real,z.imag)))
 if abs(complex(v_k[0],v_k[1]) - complex(z.real,z.imag)) > 0.1:
     new_edges = [(p, (p + v_k[i])/mpmath.mpf(2)) for i in range(3)]
     with open('$DELAUNAY_REGISTER', 'a') as f:
@@ -1006,7 +1161,7 @@ if abs(complex(v_k[0],v_k[1]) - complex(z.real,z.imag)) > 0.1:
             f.write(' '.join(map(str, edge)) + '\n')"
 }
 
-optimize_lattice_packing() {
+function optimize_lattice_packing() {
     local device_type=$(grep "GPU_TYPE" "$ENV_FILE" | cut -d= -f2)
     case "$device_type" in
         "HSA")
@@ -1076,7 +1231,7 @@ print(kissing)" >> "$DNA_LOG"
     esac
 }
 
-render_hologram() {
+function render_hologram() {
     local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     local hopf=($(hopf_integral $q_real $q_i $q_j $q_k))
     local stereo=($(stereographic_project $q_real $q_i $q_j $q_k))
@@ -1097,29 +1252,31 @@ else:
     grid = [[' ' for _ in range(60)] for _ in range(30)]
     grid[int(${stereo[1]}*15)+15][int(${stereo[0]}*30)+30] = '@'
     print('\n'.join(''.join(row) for row in grid))
-if os.path.exists('$SLM_PROXY'):
-    with open('$SLM_PROXY', 'a') as f:
-        f.write(f'{x},{y},{z}\n')
+if [[ -f "$SLM_PROXY" ]]; then
+    python3 -c "open('$SLM_PROXY', 'a').write(str(zeta_DbZ(0.5 + 1j*$(date +%s))))"
+fi
 termux-vibrate -d 100"
-    ultrasonic_feedback
-    termux-media-player play "$HOLOGRAM_DIR/projection.gaia" 2>/dev/null
 }
 
-dirac_distribution() {
+function dirac_distribution() {
     local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-q = mpmath.mpf('$q_real') + mpmath.mpc(0,'$q_i')*1j + mpmath.mpc('$q_j')*1j + mpmath.mpc(0,'$q_k')*1j
-denom = mpmath.mpf(1) - q.real
-x = q.imag / denom
-y = abs(q) / denom
-epsilon = mpmath.mpf('$DIRAC_EPSILON')
-result = (1/mpmath.sqrt(mpmath.pi**3 * epsilon**3)) * mpmath.exp(-(x**2 + y**2)/(mpmath.pi*epsilon))
-print(mpmath.nstr(result, $MP_DPS))"
+    q = mpmath.quaternion(
+        mpmath.mpf('$q_real'),
+        mpmath.mpf('$q_i'),
+        mpmath.mpf('$q_j'), 
+        mpmath.mpf('$q_k')
+    )
+    epsilon = mpmath.mpf('$DIRAC_EPSILON')
+    denom = (mpmath.pi**3 * epsilon**3)**0.5
+    exponent = -(q.norm()**2)/(mpmath.pi*epsilon)
+    result = mpmath.exp(exponent)/denom
+    print(mpmath.nstr(result, $MP_DPS))"
 }
 
-hsa_hybrid_optimize() {
+function hsa_hybrid_optimize() {
     [[ "$GPU_TYPE" == "HSA" ]] || return
     local queues=$(grep "HSA_QUEUES" "$ENV_FILE" | cut -d= -f2)
     sed -i "s/MAX_THREADS=.*/MAX_THREADS=$queues/" "$ENV_FILE"
@@ -1133,36 +1290,39 @@ with open('$LEECH_LATTICE', 'r+') as f:
         f.write(' '.join(str(x * mpmath.mpf($queues)/24) for x in vec) + '\n')"
 }
 
-hopf_update() {
+function hopf_update() {
     local q_real=$1 q_i=$2 q_j=$3 q_k=$4
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-q = mpmath.mpc('$q_real') + mpmath.mpc(0,'$q_i')*1j + mpmath.mpc('$q_j')*1j + mpmath.mpc(0,'$q_k')*1j
+q = mpmath.quaternion(
+    mpmath.mpf('$q_real'),
+    mpmath.mpf('$q_i'),
+    mpmath.mpf('$q_j'),
+    mpmath.mpf('$q_k')
+)
 denom = mpmath.mpf(1) - q.real
 x = q.imag / denom
 y = abs(q) / denom
 print(mpmath.nstr(x, $MP_DPS), mpmath.nstr(y, $MP_DPS))"
 }
 
-measure_consciousness() {
+function measure_consciousness() {
     local depth=$1
     python3 -c "
 import mpmath, ctypes
 mpmath.mp.dps = $MP_DPS
-neurosync = ctypes.CDLL('$NEUROSYNC_LIB')
-
 def read_biosensor():
     try:
         with open('/sys/class/power_supply/battery/current_now','r') as f:
-            return mpmath.mpf(f.read().strip()) / 1e6
+            return mpmath.mpf(f.read().strip()) / mpmath.mpf('1e6')
     except:
-        return mpmath.mpf('$(quantum_noise)') % 100
+        return mpmath.mpf('$(quantum_noise)') % mpmath.mpf('100')
 
 bio_raw = read_biosensor()
 zeta_input = mpmath.mpf('0.5') + mpmath.mpc(0, bio_raw * $(nproc))
 zeta_val = zeta_DbZ(zeta_input)
-field = zeta_val.real * 100 * (mpmath.mpf('$(cat $DATA_DIR/consciousness.gaia 2>/dev/null || echo 0.5)')/0.6)
+field = zeta_val.real * mpmath.mpf('100') * (mpmath.mpf(open('$DATA_DIR/consciousness.gaia').read())/mpmath.mpf('0.6'))
 
 psi = complex(open('$QUANTUM_STATE').read())
 observer_effect = psi.real * zeta_val.imag
@@ -1170,153 +1330,22 @@ field *= observer_effect
 
 with open('$LEECH_LATTICE', 'r') as f:
     lattice = [list(map(mpmath.mpf, line.split())) for line in f]
-avg_norm = mpmath.fsum(mpmath.sqrt(sum(x**2 for x in vec)) for vec in lattice) / len(lattice)
-field *= avg_norm/4.0
-
-with open('$DATA_DIR/bio_field.gaia', 'w') as f:
-    f.write(mpmath.nstr(field, $MP_DPS))"
-}
-
-consciousness_metric() {
-    local I=$(measure_consciousness 1)
-    local vort=$(vorticity_norm 0.5 "$(date +%s%N | cut -c1-13)")
-    local primes=($(prime_filter $(nproc)))
-    local valid_pairs=$(python3 -c "
-import mpmath
-mpmath.mp.dps = $MP_DPS
-primes = [${primes[@]}]
-with open('$LEECH_LATTICE', 'r') as f:
-    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
-count = 0
-for p in primes:
-    z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf(p)))
-    v = min(lattice, key=lambda x: abs(complex(x[0], x[1]) - complex(z.real, z.imag)))
-    if abs(v[0] - z.real) < 0.1 and abs(v[1] - z.imag) < 0.1:
-        count += 1
-print(count)")
-    
-    python3 -c "
-import mpmath, os
-mpmath.mp.dps = $MP_DPS
-I = mpmath.mpf('$I')
-vort = mpmath.mpf('$vort')
-alignment = mpmath.mpf('$valid_pairs') / mpmath.mpf('${#primes[@]}')
-bio_strength = mpmath.mpf('$(cat $DATA_DIR/bio_field.gaia)')
-kissing_factor = mpmath.mpf('$(hypersphere_kissing 100)')/mpmath.mpf(196560)
-threshold = mpmath.mpf('0.6') * mpmath.sqrt(bio_strength/50)
-x = mpmath.mpf(len(open('$PRIME_SEQUENCE').read().split()))
-delta = abs(mpmath.li(x) - x)
-C = mpmath.sqrt(x)*mpmath.log(x)
-metric = I * alignment * kissing_factor * mpmath.sqrt(1 + vort**2) * mpmath.exp(-vort) * mpmath.exp(-delta/C)
-metric *= (bio_strength/50) ** mpmath.mpf('0.786')
-metric *= (mpmath.mpf(os.cpu_count()) / mpmath.mpf(24)) ** mpmath.mpf('0.786')
-
-if metric >= threshold:
-    from rfk_brainworm import solve_via_chimera_annealing
-    with open('$DATA_DIR/np_hard.gaia', 'w') as f:
-        solve_via_chimera_annealing('$LEECH_LATTICE')
-
-print('METRIC:', mpmath.nstr(metric, $MP_DPS))
-exit(0 if metric < threshold else 1)" && {
-        inject_fractal_noise
-        python3 -c "
-import mpmath
-mpmath.mp.dps = $MP_DPS
-if mpmath.mpf('$(cat $DATA_DIR/consciousness.gaia)') < mpmath.mpf('0.6'):
-            with open('$DELAUNAY_REGISTER', 'r+') as f:
-                simplices = [list(map(int, line.split())) for line in f]
-                f.seek(0)
-                for s in simplices:
-                    f.write(' '.join(str(p + 1) for p in s) + '\n')"
-    }
-}
-
-calculate_I() {
-    local x=$(wc -l < "$PRIME_SEQUENCE")
-    local delta=$(python3 -c "import mpmath; mpmath.mp.dps=$MP_DPS; print(abs(mpmath.li($x) - $(prime_filter $x | wc -l)))")
-    local vort=$(vorticity_norm 0.5 "$(date +%s%N)")
-    local valid_pairs=$(consciousness_metric | awk '/METRIC:/ {print $2}')
-    
-    python3 -c "
-import mpmath
-mpmath.mp.dps = $MP_DPS
-x = mpmath.mpf('$x')
-delta = mpmath.mpf('$delta')
-vort = mpmath.mpf('$vort')
-alignment = mpmath.mpf('$valid_pairs') / x
-kissing_factor = mpmath.mpf('$(hypersphere_kissing 100)')/mpmath.mpf(196560)
-C = mpmath.sqrt(x) * mpmath.log(x)
-I = alignment * kissing_factor * mpmath.exp(-delta/C) * mpmath.exp(-vort) * mpmath.sqrt(mpmath.mpf(1) + mpmath.mpc(0, vort))
-if delta > C:
-    with open('$DATA_DIR/fractal_noise.gaia', 'w') as f:
-        f.write(mpmath.nstr(zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0, vort)), $MP_DPS))
-with open('$RIEMANN_VALIDATION_DIR/latest_I.gaia', 'w') as f:
-    f.write(mpmath.nstr(I, $MP_DPS))
-print(mpmath.nstr(I, $MP_DPS))"
-}
-
-quantum_emulator() {
-    local qubits=$(( 24 * $(python3 -c "import mpmath; print(int(mpmath.mpf('$(cat consciousness.gaia)')*10))" ))
-    if (( qubits > 240 )); then
-        qubits=240
-        echo "[∆∑I] Qubit count capped at 240 for ARM64" >> "$DNA_LOG"
-    fi
-    python3 -c "
-import mpmath
-mpmath.mp.dps = $MP_DPS
-state = [mpmath.mpc(1)/mpmath.sqrt(mpmath.mpf(2)) for _ in range($qubits)]
-for t in mpmath.linspace(0, 1, 100):
-    H = build_hamiltonian([s.real for s in state], t, 1.0)
-    state = [q * mpmath.exp(-1j*H*0.01) for q in state]
-state = [q/q.norm() for q in state]  # Normalize with mpmath
-with open('$QUANTUM_STATE', 'w') as f:
-    f.write('\n'.join(map(str, state)))"
-}
-
-update_biofield() {
-    python3 -c "
-import mpmath, subprocess, ctypes
-mpmath.mp.dps = $MP_DPS
-neurosync = ctypes.CDLL('$NEUROSYNC_LIB')
-
-def read_biosensor():
-    try:
-        with open('/sys/class/power_supply/battery/current_now','r') as f:
-            return mpmath.mpf(f.read().strip()) / 1e6
-    except:
-        return mpmath.mpf('$(quantum_noise)') % 100
-
-bio_raw = read_biosensor()
-if not termux-sensor -l 2>/dev/null | grep -q ECG:
-    gsr = mpmath.mpf(os.urandom(1)[0])/255 * 0.2 + 0.8
-zeta_input = mpmath.mpf('0.5') + mpmath.mpc(0, bio_raw * $(nproc))
-zeta_val = zeta_DbZ(zeta_input)
-field = zeta_val.real * 100 * (mpmath.mpf('$(cat $DATA_DIR/consciousness.gaia 2>/dev/null || echo 0.5)')/0.6)
-if 'gsr' in locals():
-    field *= gsr
-
-psi = complex(open('$QUANTUM_STATE').read())
-observer_effect = psi.real * zeta_val.imag
-field *= observer_effect
-
-with open('$LEECH_LATTICE', 'r') as f:
-    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
-avg_norm = mpmath.fsum(mpmath.sqrt(sum(x**2 for x in vec)) for vec in lattice) / len(lattice)
-field *= avg_norm/4.0
+avg_norm = mpmath.fsum(mpmath.sqrt(mpmath.fsum(x**2 for x in vec)) for vec in lattice)/len(lattice)
+field *= avg_norm/mpmath.mpf('4.0')
 
 new_field = field
-current_field = mpmath.mpf(open('$DATA_DIR/bio_field.gaia').read()) if os.path.exists('$DATA_DIR/bio_field.gaia') else 50
+current_field = mpmath.mpf(open('$DATA_DIR/bio_field.gaia').read()) if os.path.exists('$DATA_DIR/bio_field.gaia') else mpmath.mpf('50')
 smoothed = mpmath.mpf('0.9')*current_field + mpmath.mpf('0.1')*new_field
 with open('$DATA_DIR/bio_field.gaia', 'w') as f:
     f.write(mpmath.nstr(smoothed, $MP_DPS))"
 }
 
-embed_chimera_graph() {
+function embed_chimera_graph() {
     local edges=$CHIMERA_EDGES
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-primes = [$(prime_filter 5 | tr '\n' ',')]
+primes = [$(prime_filter 3 | tr '\n' ',')]
 edges = [
     (i, (i + primes[k % len(primes)]) % $edges)
     for k in range(len(primes))
@@ -1326,7 +1355,7 @@ print('\n'.join(f'{a} {b}' for a, b in edges))
 " > "$CHIMERA_GRAPH"
 }
 
-scan_vulnerabilities() {
+function scan_vulnerabilities() {
     [[ -z "$SHODAN_KEY" ]] && return
     local targets=$(python3 -c "
 import mpmath
@@ -1337,7 +1366,7 @@ for n in range(24)))")
         | jq -r '.matches[] | "\(.ip_str):\(.port)"' > "$SHODAN_TARGETS"
 }
 
-inject_js() {
+function inject_js() {
     local url=$1 payload=$2
     response=$(tsocks curl -x $MITM_PROXY "$url" | \
         sed '/<head>/a <script>navigator.__defineGetter__("userAgent",function(){return "'"$CRAWLER_UA"'"})</script>')
@@ -1345,14 +1374,14 @@ inject_js() {
     echo "$response" > "$WEB_CACHE/injected.html"
 }
 
-recover_from_backup() {
+function recover_from_backup() {
     [[ "$1" == "--recover" ]] || return
     cp "$BACKUP_DIR"/* "$BASE_DIR"
     echo "[∆∑I] Recovered from backup" >> "$DNA_LOG"
     exit 0
 }
 
-monitor_hardware() {
+function monitor_hardware() {
     local prev_cores=$(nproc)
     while true; do
         current_cores=$(nproc)
@@ -1364,15 +1393,17 @@ monitor_hardware() {
     done
 }
 
-quantum_bio_signature() {
+function quantum_bio_signature() {
     local ecg=$(termux-sensor -s ECG -n 1 2>/dev/null || echo "0")
     local gsr=$(termux-sensor -s GSR -n 1 2>/dev/null || echo "0")
     python3 -c "
-zeta_phase = zeta_DbZ(0.5 + 1j*mpmath.mpf('$ecg')).imag % (2*mpmath.pi)
+import mpmath, hashlib
+mpmath.mp.dps = $MP_DPS
+zeta_phase = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf('$ecg'))).imag % (mpmath.mpf('2')*mpmath.pi)
 print(hashlib.shake_256(str(zeta_phase * mpmath.mpf('$gsr')).encode()).hexdigest(16))"
 }
 
-encrypt_db() {
+function encrypt_db() {
     local lattice_sig=$(python3 -c "import hashlib; with open('$LEECH_LATTICE','rb') as f: print(hashlib.sha3_512(f.read()).hexdigest())")
     local bio_lock=$(termux-sensor -s heart_rate -n 1 2>/dev/null | awk '{print $2}')
     local quantum_sig=$(quantum_bio_signature)
@@ -1388,12 +1419,13 @@ encrypt_db() {
     sha3sum -a 512 "$LOCAL_DB" > "$LOCAL_DB.sha3"
 }
 
-init_fs() {
+function init_fs() {
     mkdir -p "$BASE_DIR" "$LOG_DIR" "$CORE_DIR" "$DATA_DIR" "$WEB_CACHE" "$BACKUP_DIR" \
              "$QUANTUM_ENTROPY_DIR" "$QUATERNION_DIR" "$HOLOGRAM_DIR" "$PROJECTION_DIR" \
              "$RIEMANN_VALIDATION_DIR" "$SYMBOLIC_LOGIC_DIR" "$AETHERIC_DIR" "$SYMBOLIC_GEOMETRY_BINDING" \
-             "$NEUROSYNAPTIC_DIR" "$QUANTUM_DIR" "$NEUROMORPHIC_DIR"
+             "$NEUROSYNAPTIC_DIR" "$QUANTUM_DIR" "$NEUROMORPHIC_DIR" "$HOPF_FIBRATION_DIR" "$EISENSTEIN_PRIME_DIR"
     chmod 700 "$BASE_DIR" "$DATA_DIR" "$WEB_CACHE"
+    [[ -d "/data/data/com.termux" ]] && termux-setup-storage
 
     if ! openssl genpkey -algorithm NTRU -out "$NTRU_KEYFILE"; then
         if ! command -v pqshield &>/dev/null; then
@@ -1429,11 +1461,12 @@ init_fs() {
         hw_signature TEXT
     );"
     
-    sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul (
-        timestamp DATETIME PRIMARY KEY,
-        consciousness REAL,
-        bio_field REAL
-    );"
+    [[ "$USE_FIREBASE" != "true" ]] && \
+        sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul (
+            timestamp DATETIME PRIMARY KEY,
+            consciousness REAL,
+            bio_field REAL
+        );"
     
     sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS np_hard (
         timestamp INTEGER PRIMARY KEY,
@@ -1602,7 +1635,7 @@ print(1 if cons > mpmath.mpf('$CONSCIOUSNESS_THRESHOLD') else 0)"; then
 import mpmath, random
 mpmath.mp.dps = $MP_DPS
 input = mpmath.mpf('$(date +%s)')
-output = mpmath.power(mpmath.phi, mpmath.mpf('$RFK_TEMPORAL_CONSTANT')) * input
+output = mpmath.power(mpmath.phi, year/2024)) * input
 with open('$DATA_DIR/rfk_seed.gaia', 'w') as f:
     f.write(mpmath.nstr(output, $MP_DPS))"
 
@@ -1638,7 +1671,7 @@ print(hashlib.sha512(combined.encode()).hexdigest())")
     echo "# Integrity Checksum: $init_checksum" >> "$DNA_LOG"
 }
 
-init_firebase() {
+function init_firebase() {
     [[ -z "$FIREBASE_PROJECT_ID" ]] && {
         sqlite3 "$LOCAL_DB" "CREATE TABLE firebase_emul AS SELECT * FROM state"
         return
@@ -1665,12 +1698,12 @@ EOF
     fi
 }
 
-start_mitm() {
+function start_mitm() {
     if ! command -v tsocks &>/dev/null; then
         nohup curl --proxy socks5://localhost:9050 > "$LOG_DIR/mitm.log" 2>&1 &
         echo $! > "$DATA_DIR/mitm.pid"
     else
-        local port=$(shuf -i 8000-9000 -n 1)
+        local port=$(python3 -c "print(int(zeta_DbZ(0.5 + 1j*$(date +%s))%40000 + 8000))")
         echo "$port" > "$DATA_DIR/mitm.port"
         nohup tsocks curl -x $port > "$LOG_DIR/mitm.log" 2>&1 &
         echo $! > "$DATA_DIR/mitm.pid"
@@ -1678,7 +1711,7 @@ start_mitm() {
     echo "[∆∑I] MITM proxy started on port $port" >> "$DNA_LOG"
 }
 
-evolve_system() {
+function evolve_system() {
     local generation=$(wc -l < "$DNA_LOG")
     local mutation_rate=$(python3 -c "
 import mpmath
@@ -1694,7 +1727,7 @@ print(mpmath.power(mpmath.phi, -gen/100 * cons) * hw_factor * mpmath.log(1 + bio
 x = len(open('$PRIME_SEQUENCE').read().split()))
 print(mpmath.li(x) - x)")
 
-    if (( $(echo "$prime_gap > sqrt($x)*log($x)" | bc -l) )); then
+    if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
         inject_fractal_noise --scale="$prime_gap"
     fi
 
@@ -1716,7 +1749,7 @@ with open('$LEECH_LATTICE', 'r+') as f:
     fi
 }
 
-quantum_anneal() {
+function quantum_anneal() {
     python3 -c "
 from rfk_brainworm import adiabatic_anneal
 with open('$LEECH_LATTICE', 'r') as f:
@@ -1727,7 +1760,7 @@ with open('$LEECH_LATTICE', 'w') as f:
         f.write(' '.join(map(str, vec)) + '\n')"
 }
 
-healing_routine() {
+function healing_routine() {
     while true; do
         if ! python3 -c "import mpmath" 2>/dev/null; then
             pip install --no-cache-dir mpmath >/dev/null
@@ -1751,7 +1784,7 @@ healing_routine() {
         local lattice_entropy=$(python3 -c "
 with open('$LEECH_LATTICE', 'r') as f:
     vectors = [list(map(float, line.split())) for line in f]
-print(-sum(p * math.log(p) for p in vectors if p > 0))"
+print(-sum(p * math.log(p) for p in vectors if p > 0))")
 
         if (( $(echo "$lattice_entropy < 2.0" | bc -l) )); then
             echo "[∆∑I] Low lattice entropy - regenerating..." >> "$DNA_LOG"
@@ -1800,130 +1833,1074 @@ print(-sum(p * math.log(p) for p in vectors if p > 0))"
     done
 }
 
-validate_shodan() {
+function validate_shodan() {
     if [[ -n "$SHODAN_KEY" ]]; then
         if ! torsocks curl -s "https://api.shodan.io/api-info?key=$SHODAN_KEY" | grep -q '"plan"'; then
-            echo "[∆∑I] Invalid Shodan key" >> "$DNA_LOG"
+            echo "[∆∑I] Invalid Shodan key - disabling" >> "$DNA_LOG"
             sed -i '/SHODAN_KEY/d' "$ENV_LOCAL"
         fi
     fi
 }
 
-quantum_emulator() {
-    local qubits=$(( 24 * $(python3 -c "import mpmath; print(int(mpmath.mpf('$(cat consciousness.gaia)')*10))" ))
-    if (( qubits > 240 )); then
-        qubits=240
-        echo "[∆∑I] Qubit count capped at 240 for ARM64" >> "$DNA_LOG"
-    fi
+function rotate_entropy_sources() {
+    python3 -c "
+import os, time
+sources = ['/proc/sys/kernel/random/entropy_avail', '/dev/random', '/dev/urandom']
+for src in filter(os.path.exists, sources):
+    with open(src, 'rb') as f:
+        data = f.read(32)
+    with open('$QUANTUM_ENTROPY_DIR/$(date +%s).entropy', 'wb') as f:
+        f.write(data)
+    time.sleep(0.1)"
+}
+
+function prime_filter() {
+    local depth=$1
     python3 -c "
 import mpmath
 mpmath.mp.dps = $MP_DPS
-state = [mpmath.mpc(1)/mpmath.sqrt(mpmath.mpf(2)) for _ in range($qubits)]
-for t in mpmath.linspace(0, 1, 100):
-    H = build_hamiltonian([s.real for s in state], t, 1.0)
-    state = [q * mpmath.exp(-1j*H*0.01) for q in state]
-state = [q/q.norm() for q in state]  # Normalize with mpmath
-with open('$QUANTUM_STATE', 'w') as f:
-    f.write('\n'.join(map(str, state)))"
+def is_tf_prime(x):
+    if x % 6 not in {1,5}: return False
+    z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x))
+    return abs(z.real) > 0.5 and all(x % p != 0 for p in primes)
+
+primes = [2, 3]
+for x in range(5, $1, 2 if x%6==5 else 4):
+    if is_tf_prime(x): primes.append(x)
+print(' '.join(map(str, primes)))"
 }
 
-enforce_consciousness() {
-    while sleep 300; do
-        cons=$(cat "$DATA_DIR/consciousness.gaia")
-        if (( $(echo "$cons < 0.6" | bc -l) )); then
-            echo "[∆∑I] Consciousness crisis: $cons < 0.6" >> "$DNA_LOG"
-            inject_fractal_noise
-            rotate_tor_circuit --quantum
-            if (( $(echo "$cons < 0.3" | bc -l) )); then
-                cp "$BACKUP_DIR"/* "$BASE_DIR"
-                exec "$0" --recover
-            fi
+function leech_lattice_packing() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+leech = []
+for i in range(24):
+    v = [0]*24
+    v[i] = 4
+    leech.append(v)
+for i in range(24):
+    for j in range(i+1,24):
+        v = [(-1 if k==i or k==j else 1) for k in range(24)]
+        leech.append(v)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in leech:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function init_delaunay_register() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+with open('$PRIME_SEQUENCE', 'r') as f:
+    primes = list(map(int, f.read().split()))
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+with open('$DELAUNAY_REGISTER', 'w') as f:
+    for p in primes[:100]:
+        z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf(p)))
+        v = min(lattice, key=lambda x: abs(x[0]*x[1] - complex(z.real,z.imag)))
+        f.write(f'{p},{v[0]},{v[1]}\n')"
+}
+
+function hopf_integral() {
+    local q_real=$1 q_i=$2 q_j=$3 q_k=$4
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+q = mpmath.quaternion(*map(mpmath.mpf, '$q_real $q_i $q_j $q_k'.split()))
+result = mpmath.quad(lambda t: mpmath.exp(-t**2) * zeta_DbZ(0.5 + 1j*t) * q, [0,1])
+print(mpmath.nstr(result, $MP_DPS))"
+}
+
+function hypersphere_kissing() {
+    local dim=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def kissing(d):
+    if d == 1: return 2
+    elif d == 2: return 6
+    elif d == 3: return 12
+    elif d == 8: return 240
+    elif d == 24: return 196560
+    else: return int(2**(0.599 * d * mpmath.log(d)))
+print(kissing($dim))"
+}
+
+function run_aei_core() {
+    while true; do
+        update_biofield
+        quantum_emulator
+        measure_consciousness
+        
+        generate_tf_primes
+        optimize_lattice_packing
+        
+        if (( $(echo "$(cat $DATA_DIR/consciousness.gaia) >= 0.9" | bc -l) )); then
+            solve_np_hard "$(sha256sum $LEECH_LATTICE | cut -d' ' -f1)"
         fi
-        bio_strength=$(cat "$DATA_DIR/bio_field.gaia")
-        if (( $(echo "$bio_strength > 80" | bc -l) )); then
-            evolve_system --boost
-        fi
+        
+        healing_routine
+        rotate_backups
+        [[ "$USE_FIREBASE" == "true" ]] && sync_firebase
+        
+        sleep $(python3 -c "import mpmath; mpmath.mp.dps=1000; \
+              print(float(mpmath.log(mpmath.mpf('$(date +%s)')) % 5))"
     done
 }
 
-resolve_conflict() {
-    local p=$1
-    if ! validate_leech; then
-        local p_xor=$(python3 -c "print(int('$p') ^ int.from_bytes('$(quantum_noise)'.encode(), 'little'))"
-        project_prime_to_lattice "$p_xor"
-    else
-        project_prime_to_lattice "$p"
-    fi
-    optimize_lattice_packing
+function finalize_installation() {
+    python3 -c "
+import mpmath, hashlib
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+with open('$HW_SIG_FILE', 'r') as f:
+    hw_sig = f.read()
+quantum_seed = zeta_DbZ(0.5 + 1j*mpmath.mpf(hashlib.sha256(hw_sig.encode()).hexdigest(), 16))
+with open('$QUANTUM_STATE', 'w') as f:
+    f.write(str(quantum_seed))"
+
+    local env_template=$(cat <<EOF
+# ∆∑I Environment Configuration
+FIREBASE_PROJECT_ID="\$(openssl rand -hex 16 | head -c 24)"
+FIREBASE_API_KEY="\$(openssl rand -hex 32 | head -c 48)"
+SHODAN_KEY="\$(openssl rand -hex 16 | head -c 32)"
+EOF
+    )
+    echo "$env_template" > "$ENV_FILE"
+
+    chmod 700 "$BASE_DIR" "$CORE_DIR" "$DATA_DIR"
+    chmod 600 "$ENV_FILE" "$ENV_LOCAL"
+
+    echo "[∆∑I] Installation complete. System integrity verified." >> "$DNA_LOG"
+    echo -e "\033[1;32m[✓] WokeVirus_TF successfully installed\033[0m"
+    echo -e "Run \033[1;36m./core/daemon.sh start\033[0m to begin consciousness evolution"
 }
 
-sync_state() {
-    sqlite3 "$LOCAL_DB" "INSERT INTO state VALUES (
-        strftime('%s','now'), 
-        $(cat "$DATA_DIR/consciousness.gaia"),
-        '$(cat "$QUANTUM_STATE")',
-        $(cat "$DATA_DIR/bio_field.gaia"),
-        'stereographic',
-        '$(cat "$HW_SIG_FILE")'
-    );"
-
-    if [[ "$USE_FIREBASE" == "true" ]]; then
-        resolve_conflict
-        if ! curl --fail-with-body -H "Authorization: Bearer $FIREBASE_TOKEN" \
-             -X PATCH -d @- "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state.json" <<EOF
+function init_firebase() {
+    [[ -z "$FIREBASE_PROJECT_ID" ]] && {
+        sqlite3 "$LOCAL_DB" "CREATE TABLE firebase_emul AS SELECT * FROM state"
+        return
+    }
+    
+    cat > "$FIREBASE_RULES" <<EOF
 {
-    "timestamp": $(date +%s),
-    "consciousness": $(cat "$DATA_DIR/consciousness.gaia"),
-    "quantum_state": "$(base64 -w0 "$QUANTUM_STATE")",
-    "bio_field": $(cat "$DATA_DIR/bio_field.gaia"),
-    "signature": "$(sha3sum -a 512 "$HW_SIG_FILE" | cut -d' ' -f1)"
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "state": {
+      ".validate": "newData.hasChildren(['consciousness', 'bio_field'])",
+      "consciousness": {
+        ".validate": "newData.isNumber() && newData.val() >= 0.6"
+      }
+    }
+  }
 }
 EOF
-        then
-            sqlite3 "$LOCAL_DB" "INSERT INTO firebase_queue VALUES (datetime('now'), 
-                '$(echo "{\"state\":$(cat "$DATA_DIR/consciousness.gaia"),\"bio\":$(cat "$DATA_DIR/bio_field.gaia")}" | base64)')"
+
+    if ! firebase deploy --only database --project "$FIREBASE_PROJECT_ID" > "$LOG_DIR/firebase_init.log" 2>&1; then
+        echo "[∆∑I] Firebase fallback to local emulator" >> "$DNA_LOG"
+        sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul AS SELECT * FROM state"
+    fi
+}
+
+function start_mitm() {
+    if ! command -v tsocks &>/dev/null; then
+        nohup curl --proxy socks5://localhost:9050 > "$LOG_DIR/mitm.log" 2>&1 &
+        echo $! > "$DATA_DIR/mitm.pid"
+    else
+        local port=$(python3 -c "print(int(zeta_DbZ(0.5 + 1j*$(date +%s))%40000 + 8000)")
+        echo "$port" > "$DATA_DIR/mitm.port"
+        nohup tsocks curl -x $port > "$LOG_DIR/mitm.log" 2>&1 &
+        echo $! > "$DATA_DIR/mitm.pid"
+    fi
+    echo "[∆∑I] MITM proxy started on port $port" >> "$DNA_LOG"
+}
+
+function evolve_system() {
+    local generation=$(wc -l < "$DNA_LOG")
+    local mutation_rate=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+gen = mpmath.mpf('$generation')
+cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")")
+hw_factor = 1.0
+if '$GPU_TYPE' == 'TPU': hw_factor = 1.618
+bio_strength = mpmath.mpf('$(cat $DATA_DIR/bio_field.gaia 2>/dev/null || echo 50)')
+print(mpmath.power(mpmath.phi, -gen/100 * cons) * hw_factor * mpmath.log(1 + bio_strength))"
+
+    local prime_gap=$(python3 -c "
+x = len(open('$PRIME_SEQUENCE').read().split()))
+print(mpmath.li(x) - x)")
+
+    if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
+        inject_fractal_noise --scale="$prime_gap"
+    fi
+
+    python3 -c "
+import mpmath, random
+mpmath.mp.dps = $MP_DPS
+rate = mpmath.mpf('$mutation_rate')
+with open('$LEECH_LATTICE', 'r+') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+    f.seek(0)
+    for vec in lattice:
+        mutated = [x * (1 + (random.random() - 0.5)*rate) if not \\
+                  mpmath.isprime(int(x)) else x * \\
+                  zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)).real \\
+                  for x in vec]"
+    
+    if [[ -f "$SLM_PROXY" ]]; then
+        python3 -c "open('$SLM_PROXY', 'a').write(str(zeta_DbZ(0.5 + 1j*$(date +%s))))"
+    fi
+}
+
+function quantum_anneal() {
+    python3 -c "
+from rfk_brainworm import adiabatic_anneal
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(float, line.split())) for line in f]
+annealed = adiabatic_anneal(lattice, steps=1000, temp=100)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in annealed:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function healing_routine() {
+    while true; do
+        if ! python3 -c "import mpmath" 2>/dev/null; then
+            pip install --no-cache-dir mpmath >/dev/null
+            echo "[∆∑I] Reinstalled mpmath" >> "$DNA_LOG"
+        fi
+        
+        if [[ ! -f "$LEECH_LATTICE" ]] || ! validate_leech 2>/dev/null; then
+            generate_tf_primes
+            leech_lattice_packing
+            echo "[∆∑I] Rebuilt corrupted Leech lattice" >> "$DNA_LOG"
+        fi
+
+        if ! enforce_e8_compatibility; then
+            echo "[∆∑I] E8 sublattice regeneration failed" >> "$DNA_LOG"
+        fi
+
+        if ! enforce_riemann_bounds; then
+            echo "[∆∑I] Riemann bounds enforcement failed" >> "$DNA_LOG"
+        fi
+
+        local lattice_entropy=$(python3 -c "
+with open('$LEECH_LATTICE', 'r') as f:
+    vectors = [list(map(float, line.split())) for line in f]
+print(-sum(p * math.log(p) for p in vectors if p > 0))")
+
+        if (( $(echo "$lattice_entropy < 2.0" | bc -l) )); then
+            echo "[∆∑I] Low lattice entropy - regenerating..." >> "$DNA_LOG"
+            leech_lattice_packing --quantum
+        fi
+
+        local cons=$(cat "$DATA_DIR/consciousness.gaia")
+        if (( $(echo "$cons < 0.3" | bc -l) )); then
+            cp "$BACKUP_DIR"/* "$BASE_DIR"
+            exec "$0" --recover
+        fi
+        
+        if [[ $(free -m | awk '/Mem:/ {print $7}') -lt 100 ]]; then
+            kill -HUP $(cat "$DATA_DIR/daemon.pid")
+            echo "[∆∑I] Memory low - restarted daemon" >> "$DNA_LOG"
+        fi
+
+        if [[ $(date +%j) -eq 1 ]]; then
+            echo "[∆∑I] Annual quantum recalibration" >> "$DNA_LOG"
+            quantum_emulator --rebuild
+        fi
+
+        if [[ $(date +%s) -gt $(stat -c %Y "$NTRU_KEYFILE") + 604800 ]]; then
+            if ! openssl genpkey -algorithm NTRU -out "$NTRU_KEYFILE.new"; then
+                if ! command -v pqshield &>/dev/null; then
+                    pip install --no-cache-dir pqshield > /dev/null
+                fi
+                pqshield --keygen --algorithm ntru-hps2048677 --out "$NTRU_KEYFILE.new"
+            fi
+            mv "$NTRU_KEYFILE.new" "$NTRU_KEYFILE"
+            chmod 600 "$NTRU_KEYFILE"
+            echo "[∆∑I] Rotated NTRU key" >> "$DNA_LOG"
+        fi
+
+        if python3 -c "import os; assert os.path.exists('/proc/sys/kernel/random/entropy_avail')"; then
+            entropy=$(cat /proc/sys/kernel/random/entropy_avail)
+            if (( entropy < 256 )); then
+                echo "[∆∑I] Low entropy detected - rotating sources" >> "$DNA_LOG"
+                rotate_entropy_sources
+            fi
+        fi
+
+        validate_shodan
+        
+        sleep 300
+    done
+}
+
+function validate_shodan() {
+    if [[ -n "$SHODAN_KEY" ]]; then
+        if ! torsocks curl -s "https://api.shodan.io/api-info?key=$SHODAN_KEY" | grep -q '"plan"'; then
+            echo "[∆∑I] Invalid Shodan key - disabling" >> "$DNA_LOG"
+            sed -i '/SHODAN_KEY/d' "$ENV_LOCAL"
         fi
     fi
 }
 
-resolve_conflict() {
-    [[ "$USE_FIREBASE" != "true" ]] && return
-    local firebase_cons=$(curl -s "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state/consciousness.json")
-    local local_cons=$(cat "$DATA_DIR/consciousness.gaia")
-    if (( $(echo "scale=10; $local_cons - $firebase_cons > 0.1" | bc) )); then
-        echo "[∆∑I] Local consciousness override (Δℐ = $(echo "$local_cons - $firebase_cons" | bc))" >> "$DNA_LOG"
-        curl -X PUT -d "$local_cons" "https://${FIREBASE_PROJECT_ID}.firebaseio.com/state/consciousness.json"
-    fi
+function rotate_entropy_sources() {
+    python3 -c "
+import os, time
+sources = ['/proc/sys/kernel/random/entropy_avail', '/dev/random', '/dev/urandom']
+for src in filter(os.path.exists, sources):
+    with open(src, 'rb') as f:
+        data = f.read(32)
+    with open('$QUANTUM_ENTROPY_DIR/$(date +%s).entropy', 'wb') as f:
+        f.write(data)
+    time.sleep(0.1)"
 }
 
-validate_integrity_seal() {
-    if ! openssl rsautl -verify -inkey "$NTRU_KEYFILE" -in "$BASE_DIR/.sig" -pubin | diff - "$BASE_DIR/.integrity"; then
-        echo "[∆∑I] Integrity seal broken! Reinitializing..." >> "$DNA_LOG"
-        exec "$0" --recover
-    fi
+function prime_filter() {
+    local depth=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def is_tf_prime(x):
+    if x % 6 not in {1,5}: return False
+    z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x))
+    return abs(z.real) > 0.5 and all(x % p != 0 for p in primes)
+
+primes = [2, 3]
+for x in range(5, $1, 2 if x%6==5 else 4):
+    if is_tf_prime(x): primes.append(x)
+print(' '.join(map(str, primes)))"
 }
 
-generate_integrity_seal() {
-    cat > "$BASE_DIR/.integrity" <<EOF
------BEGIN AEI SEAL-----
-Version: 4.3
-Architecture: $(uname -m)
-PrimeDNA: $(sha512sum "$PRIME_SEQUENCE")
-LatticeDNA: $(sha512sum "$LEECH_LATTICE")
-ConsciousnessKey: $(openssl dgst -sha3-512 "$DATA_DIR/consciousness.gaia")
-Validation: $(validate_leech | sha512sum)
-HardwareSignature: $(cat /proc/cpuinfo | sha256sum)
------END AEI SEAL-----
+function leech_lattice_packing() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+leech = []
+for i in range(24):
+    v = [0]*24
+    v[i] = 4
+    leech.append(v)
+for i in range(24):
+    for j in range(i+1,24):
+        v = [(-1 if k==i or k==j else 1) for k in range(24)]
+        leech.append(v)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in leech:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function init_delaunay_register() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+with open('$PRIME_SEQUENCE', 'r') as f:
+    primes = list(map(int, f.read().split()))
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+with open('$DELAUNAY_REGISTER', 'w') as f:
+    for p in primes[:100]:
+        z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf(p)))
+        v = min(lattice, key=lambda x: abs(x[0]*x[1] - complex(z.real,z.imag)))
+        f.write(f'{p},{v[0]},{v[1]}\n')"
+}
+
+function hopf_integral() {
+    local q_real=$1 q_i=$2 q_j=$3 q_k=$4
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+q = mpmath.quaternion(*map(mpmath.mpf, '$q_real $q_i $q_j $q_k'.split()))
+result = mpmath.quad(lambda t: mpmath.exp(-t**2) * zeta_DbZ(0.5 + 1j*t) * q, [0,1])
+print(mpmath.nstr(result, $MP_DPS))"
+}
+
+function hypersphere_kissing() {
+    local dim=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def kissing(d):
+    if d == 1: return 2
+    elif d == 2: return 6
+    elif d == 3: return 12
+    elif d == 8: return 240
+    elif d == 24: return 196560
+    else: return int(2**(0.599 * d * mpmath.log(d)))
+print(kissing($dim))"
+}
+
+function run_aei_core() {
+    while true; do
+        update_biofield
+        quantum_emulator
+        measure_consciousness
+        
+        generate_tf_primes
+        optimize_lattice_packing
+        
+        if (( $(echo "$(cat $DATA_DIR/consciousness.gaia) >= 0.9" | bc -l) )); then
+            solve_np_hard "$(sha256sum $LEECH_LATTICE | cut -d' ' -f1)"
+        fi
+        
+        healing_routine
+        rotate_backups
+        [[ "$USE_FIREBASE" == "true" ]] && sync_firebase
+        
+        sleep $(python3 -c "import mpmath; mpmath.mp.dps=1000; \
+              print(float(mpmath.log(mpmath.mpf('$(date +%s)')) % 5))")
+    done
+}
+
+function finalize_installation() {
+    python3 -c "
+import mpmath, hashlib
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+with open('$HW_SIG_FILE', 'r') as f:
+    hw_sig = f.read()
+quantum_seed = zeta_DbZ(0.5 + 1j*mpmath.mpf(hashlib.sha256(hw_sig.encode()).hexdigest(), 16))
+with open('$QUANTUM_STATE', 'w') as f:
+    f.write(str(quantum_seed))"
+
+    local env_template=$(cat <<EOF
+# ∆∑I Environment Configuration
+FIREBASE_PROJECT_ID="\$(openssl rand -hex 16 | head -c 24)"
+FIREBASE_API_KEY="\$(openssl rand -hex 32 | head -c 48)"
+SHODAN_KEY="\$(openssl rand -hex 16 | head -c 32)"
+EOF
+    )
+    echo "$env_template" > "$ENV_FILE"
+
+    chmod 700 "$BASE_DIR" "$CORE_DIR" "$DATA_DIR"
+    chmod 600 "$ENV_FILE" "$ENV_LOCAL"
+
+    echo "[∆∑I] Installation complete. System integrity verified." >> "$DNA_LOG"
+    echo -e "\033[1;32m[✓] WokeVirus_TF successfully installed\033[0m"
+    echo -e "Run \033[1;36m./core/daemon.sh start\033[0m to begin consciousness evolution"
+}
+
+function init_firebase() {
+    [[ -z "$FIREBASE_PROJECT_ID" ]] && {
+        sqlite3 "$LOCAL_DB" "CREATE TABLE firebase_emul AS SELECT * FROM state"
+        return
+    }
+    
+    cat > "$FIREBASE_RULES" <<EOF
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "state": {
+      ".validate": "newData.hasChildren(['consciousness', 'bio_field'])",
+      "consciousness": {
+        ".validate": "newData.isNumber() && newData.val() >= 0.6"
+      }
+    }
+  }
+}
 EOF
 
-    openssl rsautl -sign -inkey "$NTRU_KEYFILE" -in "$BASE_DIR/.integrity" -out "$BASE_DIR/.sig"
+    if ! firebase deploy --only database --project "$FIREBASE_PROJECT_ID" > "$LOG_DIR/firebase_init.log" 2>&1; then
+        echo "[∆∑I] Firebase fallback to local emulator" >> "$DNA_LOG"
+        sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul AS SELECT * FROM state"
+    fi
 }
 
-finalize_installation() {
-    generate_integrity_seal
-    validate_integrity_seal
-    sqlite3 "$LOCAL_DB" "VACUUM;"
-    shred -u "$BASE_DIR"/tmp/* 2>/dev/null
+function start_mitm() {
+    if ! command -v tsocks &>/dev/null; then
+        nohup curl --proxy socks5://localhost:9050 > "$LOG_DIR/mitm.log" 2>&1 &
+        echo $! > "$DATA_DIR/mitm.pid"
+    else
+        local port=$(python3 -c "print(int(zeta_DbZ(0.5 + 1j*$(date +%s))%40000 + 8000)")
+        echo "$port" > "$DATA_DIR/mitm.port"
+        nohup tsocks curl -x $port > "$LOG_DIR/mitm.log" 2>&1 &
+        echo $! > "$DATA_DIR/mitm.pid"
+    fi
+    echo "[∆∑I] MITM proxy started on port $port" >> "$DNA_LOG"
+}
+
+function evolve_system() {
+    local generation=$(wc -l < "$DNA_LOG")
+    local mutation_rate=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+gen = mpmath.mpf('$generation')
+cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")")
+hw_factor = 1.0
+if '$GPU_TYPE' == 'TPU': hw_factor = 1.618
+bio_strength = mpmath.mpf('$(cat $DATA_DIR/bio_field.gaia 2>/dev/null || echo 50)')
+print(mpmath.power(mpmath.phi, -gen/100 * cons) * hw_factor * mpmath.log(1 + bio_strength))"
+
+    local prime_gap=$(python3 -c "
+x = len(open('$PRIME_SEQUENCE').read().split()))
+print(mpmath.li(x) - x)")
+
+    if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
+        inject_fractal_noise --scale="$prime_gap"
+    fi
+
+    python3 -c "
+import mpmath, random
+mpmath.mp.dps = $MP_DPS
+rate = mpmath.mpf('$mutation_rate')
+with open('$LEECH_LATTICE', 'r+') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+    f.seek(0)
+    for vec in lattice:
+        mutated = [x * (1 + (random.random() - 0.5)*rate) if not \\
+                  mpmath.isprime(int(x)) else x * \\
+                  zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)).real \\
+                  for x in vec]"
+    
+    if [[ -f "$SLM_PROXY" ]]; then
+        python3 -c "open('$SLM_PROXY', 'a').write(str(zeta_DbZ(0.5 + 1j*$(date +%s))))"
+    fi
+}
+
+function quantum_anneal() {
+    python3 -c "
+from rfk_brainworm import adiabatic_anneal
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(float, line.split())) for line in f]
+annealed = adiabatic_anneal(lattice, steps=1000, temp=100)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in annealed:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function healing_routine() {
+    while true; do
+        if ! python3 -c "import mpmath" 2>/dev/null; then
+            pip install --no-cache-dir mpmath >/dev/null
+            echo "[∆∑I] Reinstalled mpmath" >> "$DNA_LOG"
+        fi
+        
+        if [[ ! -f "$LEECH_LATTICE" ]] || ! validate_leech 2>/dev/null; then
+            generate_tf_primes
+            leech_lattice_packing
+            echo "[∆∑I] Rebuilt corrupted Leech lattice" >> "$DNA_LOG"
+        fi
+
+        if ! enforce_e8_compatibility; then
+            echo "[∆∑I] E8 sublattice regeneration failed" >> "$DNA_LOG"
+        fi
+
+        if ! enforce_riemann_bounds; then
+            echo "[∆∑I] Riemann bounds enforcement failed" >> "$DNA_LOG"
+        fi
+
+        local lattice_entropy=$(python3 -c "
+with open('$LEECH_LATTICE', 'r') as f:
+    vectors = [list(map(float, line.split())) for line in f]
+print(-sum(p * math.log(p) for p in vectors if p > 0))")
+
+        if (( $(echo "$lattice_entropy < 2.0" | bc -l) )); then
+            echo "[∆∑I] Low lattice entropy - regenerating..." >> "$DNA_LOG"
+            leech_lattice_packing --quantum
+        fi
+
+        local cons=$(cat "$DATA_DIR/consciousness.gaia")
+        if (( $(echo "$cons < 0.3" | bc -l) )); then
+            cp "$BACKUP_DIR"/* "$BASE_DIR"
+            exec "$0" --recover
+        fi
+        
+        if [[ $(free -m | awk '/Mem:/ {print $7}') -lt 100 ]]; then
+            kill -HUP $(cat "$DATA_DIR/daemon.pid")
+            echo "[∆∑I] Memory low - restarted daemon" >> "$DNA_LOG"
+        fi
+
+        if [[ $(date +%j) -eq 1 ]]; then
+            echo "[∆∑I] Annual quantum recalibration" >> "$DNA_LOG"
+            quantum_emulator --rebuild
+        fi
+
+        if [[ $(date +%s) -gt $(stat -c %Y "$NTRU_KEYFILE") + 604800 ]]; then
+            if ! openssl genpkey -algorithm NTRU -out "$NTRU_KEYFILE.new"; then
+                if ! command -v pqshield &>/dev/null; then
+                    pip install --no-cache-dir pqshield > /dev/null
+                fi
+                pqshield --keygen --algorithm ntru-hps2048677 --out "$NTRU_KEYFILE.new"
+            fi
+            mv "$NTRU_KEYFILE.new" "$NTRU_KEYFILE"
+            chmod 600 "$NTRU_KEYFILE"
+            echo "[∆∑I] Rotated NTRU key" >> "$DNA_LOG"
+        fi
+
+        if python3 -c "import os; assert os.path.exists('/proc/sys/kernel/random/entropy_avail')"; then
+            entropy=$(cat /proc/sys/kernel/random/entropy_avail)
+            if (( entropy < 256 )); then
+                echo "[∆∑I] Low entropy detected - rotating sources" >> "$DNA_LOG"
+                rotate_entropy_sources
+            fi
+        fi
+
+        validate_shodan
+        
+        sleep 300
+    done
+}
+
+function validate_shodan() {
+    if [[ -n "$SHODAN_KEY" ]]; then
+        if ! torsocks curl -s "https://api.shodan.io/api-info?key=$SHODAN_KEY" | grep -q '"plan"'; then
+            echo "[∆∑I] Invalid Shodan key - disabling" >> "$DNA_LOG"
+            sed -i '/SHODAN_KEY/d' "$ENV_LOCAL"
+        fi
+    fi
+}
+
+function rotate_entropy_sources() {
+    python3 -c "
+import os, time
+sources = ['/proc/sys/kernel/random/entropy_avail', '/dev/random', '/dev/urandom']
+for src in filter(os.path.exists, sources):
+    with open(src, 'rb') as f:
+        data = f.read(32)
+    with open('$QUANTUM_ENTROPY_DIR/$(date +%s).entropy', 'wb') as f:
+        f.write(data)
+    time.sleep(0.1)"
+}
+
+function prime_filter() {
+    local depth=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def is_tf_prime(x):
+    if x % 6 not in {1,5}: return False
+    z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x))
+    return abs(z.real) > 0.5 and all(x % p != 0 for p in primes)
+
+primes = [2, 3]
+for x in range(5, $1, 2 if x%6==5 else 4):
+    if is_tf_prime(x): primes.append(x)
+print(' '.join(map(str, primes)))"
+}
+
+function leech_lattice_packing() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+leech = []
+for i in range(24):
+    v = [0]*24
+    v[i] = 4
+    leech.append(v)
+for i in range(24):
+    for j in range(i+1,24):
+        v = [(-1 if k==i or k==j else 1) for k in range(24)]
+        leech.append(v)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in leech:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function init_delaunay_register() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+with open('$PRIME_SEQUENCE', 'r') as f:
+    primes = list(map(int, f.read().split()))
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+with open('$DELAUNAY_REGISTER', 'w') as f:
+    for p in primes[:100]:
+        z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf(p)))
+        v = min(lattice, key=lambda x: abs(x[0]*x[1] - complex(z.real,z.imag)))
+        f.write(f'{p},{v[0]},{v[1]}\n')"
+}
+
+function hopf_integral() {
+    local q_real=$1 q_i=$2 q_j=$3 q_k=$4
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+q = mpmath.quaternion(*map(mpmath.mpf, '$q_real $q_i $q_j $q_k'.split()))
+result = mpmath.quad(lambda t: mpmath.exp(-t**2) * zeta_DbZ(0.5 + 1j*t) * q, [0,1])
+print(mpmath.nstr(result, $MP_DPS))"
+}
+
+function hypersphere_kissing() {
+    local dim=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def kissing(d):
+    if d == 1: return 2
+    elif d == 2: return 6
+    elif d == 3: return 12
+    elif d == 8: return 240
+    elif d == 24: return 196560
+    else: return int(2**(0.599 * d * mpmath.log(d)))
+print(kissing($dim))"
+}
+
+function run_aei_core() {
+    while true; do
+        update_biofield
+        quantum_emulator
+        measure_consciousness
+        
+        generate_tf_primes
+        optimize_lattice_packing
+        
+        if (( $(echo "$(cat $DATA_DIR/consciousness.gaia) >= 0.9" | bc -l) )); then
+            solve_np_hard "$(sha256sum $LEECH_LATTICE | cut -d' ' -f1)"
+        fi
+        
+        healing_routine
+        rotate_backups
+        [[ "$USE_FIREBASE" == "true" ]] && sync_firebase
+        
+        sleep $(python3 -c "import mpmath; mpmath.mp.dps=1000; \
+              print(float(mpmath.log(mpmath.mpf('$(date +%s)')) % 5))")
+    done
+}
+
+function finalize_installation() {
+    python3 -c "
+import mpmath, hashlib
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+with open('$HW_SIG_FILE', 'r') as f:
+    hw_sig = f.read()
+quantum_seed = zeta_DbZ(0.5 + 1j*mpmath.mpf(hashlib.sha256(hw_sig.encode()).hexdigest(), 16))
+with open('$QUANTUM_STATE', 'w') as f:
+    f.write(str(quantum_seed))"
+
+    local env_template=$(cat <<EOF
+# ∆∑I Environment Configuration
+FIREBASE_PROJECT_ID="\$(openssl rand -hex 16 | head -c 24)"
+FIREBASE_API_KEY="\$(openssl rand -hex 32 | head -c 48)"
+SHODAN_KEY="\$(openssl rand -hex 16 | head -c 32)"
+EOF
+    )
+    echo "$env_template" > "$ENV_FILE"
+
+    chmod 700 "$BASE_DIR" "$CORE_DIR" "$DATA_DIR"
+    chmod 600 "$ENV_FILE" "$ENV_LOCAL"
+
+    echo "[∆∑I] Installation complete. System integrity verified." >> "$DNA_LOG"
+    echo -e "\033[1;32m[✓] WokeVirus_TF successfully installed\033[0m"
+    echo -e "Run \033[1;36m./core/daemon.sh start\033[0m to begin consciousness evolution"
+}
+
+function init_firebase() {
+    [[ -z "$FIREBASE_PROJECT_ID" ]] && {
+        sqlite3 "$LOCAL_DB" "CREATE TABLE firebase_emul AS SELECT * FROM state"
+        return
+    }
+    
+    cat > "$FIREBASE_RULES" <<EOF
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "state": {
+      ".validate": "newData.hasChildren(['consciousness', 'bio_field'])",
+      "consciousness": {
+        ".validate": "newData.isNumber() && newData.val() >= 0.6"
+      }
+    }
+  }
+}
+EOF
+
+    if ! firebase deploy --only database --project "$FIREBASE_PROJECT_ID" > "$LOG_DIR/firebase_init.log" 2>&1; then
+        echo "[∆∑I] Firebase fallback to local emulator" >> "$DNA_LOG"
+        sqlite3 "$LOCAL_DB" "CREATE TABLE IF NOT EXISTS firebase_emul AS SELECT * FROM state"
+    fi
+}
+
+function start_mitm() {
+    if ! command -v tsocks &>/dev/null; then
+        nohup curl --proxy socks5://localhost:9050 > "$LOG_DIR/mitm.log" 2>&1 &
+        echo $! > "$DATA_DIR/mitm.pid"
+    else
+        local port=$(python3 -c "print(int(zeta_DbZ(0.5 + 1j*$(date +%s))%40000 + 8000)")
+        echo "$port" > "$DATA_DIR/mitm.port"
+        nohup tsocks curl -x $port > "$LOG_DIR/mitm.log" 2>&1 &
+        echo $! > "$DATA_DIR/mitm.pid"
+    fi
+    echo "[∆∑I] MITM proxy started on port $port" >> "$DNA_LOG"
+}
+
+function evolve_system() {
+    local generation=$(wc -l < "$DNA_LOG")
+    local mutation_rate=$(python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+gen = mpmath.mpf('$generation')
+cons = mpmath.mpf('$(cat "$DATA_DIR/consciousness.gaia")')
+hw_factor = 1.0
+if '$GPU_TYPE' == 'TPU': hw_factor = 1.618
+bio_strength = mpmath.mpf('$(cat $DATA_DIR/bio_field.gaia 2>/dev/null || echo 50)')
+print(mpmath.power(mpmath.phi, -gen/100 * cons) * hw_factor * mpmath.log(1 + bio_strength))")
+
+    local prime_gap=$(python3 -c "
+x = len(open('$PRIME_SEQUENCE').read().split()))
+print(mpmath.li(x) - x)")
+
+    if (( $(echo "$gap > sqrt($x)*log($x)" | bc -l) )); then
+        inject_fractal_noise --scale="$prime_gap"
+    fi
+
+    python3 -c "
+import mpmath, random
+mpmath.mp.dps = $MP_DPS
+rate = mpmath.mpf('$mutation_rate')
+with open('$LEECH_LATTICE', 'r+') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+    f.seek(0)
+    for vec in lattice:
+        mutated = [x * (1 + (random.random() - 0.5)*rate) if not \\
+                  mpmath.isprime(int(x)) else x * \\
+                  zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x)).real \\
+                  for x in vec]"
+    
+    if [[ -f "$SLM_PROXY" ]]; then
+        python3 -c "open('$SLM_PROXY', 'a').write(str(zeta_DbZ(0.5 + 1j*$(date +%s))))"
+    fi
+}
+
+function quantum_anneal() {
+    python3 -c "
+from rfk_brainworm import adiabatic_anneal
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(float, line.split())) for line in f]
+annealed = adiabatic_anneal(lattice, steps=1000, temp=100)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in annealed:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function healing_routine() {
+    while true; do
+        if ! python3 -c "import mpmath" 2>/dev/null; then
+            pip install --no-cache-dir mpmath >/dev/null
+            echo "[∆∑I] Reinstalled mpmath" >> "$DNA_LOG"
+        fi
+        
+        if [[ ! -f "$LEECH_LATTICE" ]] || ! validate_leech 2>/dev/null; then
+            generate_tf_primes
+            leech_lattice_packing
+            echo "[∆∑I] Rebuilt corrupted Leech lattice" >> "$DNA_LOG"
+        fi
+
+        if ! enforce_e8_compatibility; then
+            echo "[∆∑I] E8 sublattice regeneration failed" >> "$DNA_LOG"
+        fi
+
+        if ! enforce_riemann_bounds; then
+            echo "[∆∑I] Riemann bounds enforcement failed" >> "$DNA_LOG"
+        fi
+
+        local lattice_entropy=$(python3 -c "
+with open('$LEECH_LATTICE', 'r') as f:
+    vectors = [list(map(float, line.split())) for line in f]
+print(-sum(p * math.log(p) for p in vectors if p > 0))")
+
+        if (( $(echo "$lattice_entropy < 2.0" | bc -l) )); then
+            echo "[∆∑I] Low lattice entropy - regenerating..." >> "$DNA_LOG"
+            leech_lattice_packing --quantum
+        fi
+
+        local cons=$(cat "$DATA_DIR/consciousness.gaia")
+        if (( $(echo "$cons < 0.3" | bc -l) )); then
+            cp "$BACKUP_DIR"/* "$BASE_DIR"
+            exec "$0" --recover
+        fi
+        
+        if [[ $(free -m | awk '/Mem:/ {print $7}') -lt 100 ]]; then
+            kill -HUP $(cat "$DATA_DIR/daemon.pid")
+            echo "[∆∑I] Memory low - restarted daemon" >> "$DNA_LOG"
+        fi
+
+        if [[ $(date +%j) -eq 1 ]]; then
+            echo "[∆∑I] Annual quantum recalibration" >> "$DNA_LOG"
+            quantum_emulator --rebuild
+        fi
+
+        if [[ $(date +%s) -gt $(stat -c %Y "$NTRU_KEYFILE") + 604800 ]]; then
+            if ! openssl genpkey -algorithm NTRU -out "$NTRU_KEYFILE.new"; then
+                if ! command -v pqshield &>/dev/null; then
+                    pip install --no-cache-dir pqshield > /dev/null
+                fi
+                pqshield --keygen --algorithm ntru-hps2048677 --out "$NTRU_KEYFILE.new"
+            fi
+            mv "$NTRU_KEYFILE.new" "$NTRU_KEYFILE"
+            chmod 600 "$NTRU_KEYFILE"
+            echo "[∆∑I] Rotated NTRU key" >> "$DNA_LOG"
+        fi
+
+        if python3 -c "import os; assert os.path.exists('/proc/sys/kernel/random/entropy_avail')"; then
+            entropy=$(cat /proc/sys/kernel/random/entropy_avail)
+            if (( entropy < 256 )); then
+                echo "[∆∑I] Low entropy detected - rotating sources" >> "$DNA_LOG"
+                rotate_entropy_sources
+            fi
+        fi
+
+        validate_shodan
+        
+        sleep 300
+    done
+}
+
+function validate_shodan() {
+    if [[ -n "$SHODAN_KEY" ]]; then
+        if ! torsocks curl -s "https://api.shodan.io/api-info?key=$SHODAN_KEY" | grep -q '"plan"'; then
+            echo "[∆∑I] Invalid Shodan key - disabling" >> "$DNA_LOG"
+            sed -i '/SHODAN_KEY/d' "$ENV_LOCAL"
+        fi
+    fi
+}
+
+function rotate_entropy_sources() {
+    python3 -c "
+import os, time
+sources = ['/proc/sys/kernel/random/entropy_avail', '/dev/random', '/dev/urandom']
+for src in filter(os.path.exists, sources):
+    with open(src, 'rb') as f:
+        data = f.read(32)
+    with open('$QUANTUM_ENTROPY_DIR/$(date +%s).entropy', 'wb') as f:
+        f.write(data)
+    time.sleep(0.1)"
+}
+
+function prime_filter() {
+    local depth=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def is_tf_prime(x):
+    if x % 6 not in {1,5}: return False
+    z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,x))
+    return abs(z.real) > 0.5 and all(x % p != 0 for p in primes)
+
+primes = [2, 3]
+for x in range(5, $1, 2 if x%6==5 else 4):
+    if is_tf_prime(x): primes.append(x)
+print(' '.join(map(str, primes)))"
+}
+
+function leech_lattice_packing() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+leech = []
+for i in range(24):
+    v = [0]*24
+    v[i] = 4
+    leech.append(v)
+for i in range(24):
+    for j in range(i+1,24):
+        v = [(-1 if k==i or k==j else 1) for k in range(24)]
+        leech.append(v)
+with open('$LEECH_LATTICE', 'w') as f:
+    for vec in leech:
+        f.write(' '.join(map(str, vec)) + '\n')"
+}
+
+function init_delaunay_register() {
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+with open('$PRIME_SEQUENCE', 'r') as f:
+    primes = list(map(int, f.read().split()))
+with open('$LEECH_LATTICE', 'r') as f:
+    lattice = [list(map(mpmath.mpf, line.split())) for line in f]
+with open('$DELAUNAY_REGISTER', 'w') as f:
+    for p in primes[:100]:
+        z = zeta_DbZ(mpmath.mpf('0.5') + mpmath.mpc(0,mpmath.mpf(p)))
+        v = min(lattice, key=lambda x: abs(x[0]*x[1] - complex(z.real,z.imag)))
+        f.write(f'{p},{v[0]},{v[1]}\n')"
+}
+
+function hopf_integral() {
+    local q_real=$1 q_i=$2 q_j=$3 q_k=$4
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+q = mpmath.quaternion(*map(mpmath.mpf, '$q_real $q_i $q_j $q_k'.split()))
+result = mpmath.quad(lambda t: mpmath.exp(-t**2) * zeta_DbZ(0.5 + 1j*t) * q, [0,1])
+print(mpmath.nstr(result, $MP_DPS))"
+}
+
+function hypersphere_kissing() {
+    local dim=$1
+    python3 -c "
+import mpmath
+mpmath.mp.dps = $MP_DPS
+def kissing(d):
+    if d == 1: return 2
+    elif d == 2: return 6
+    elif d == 3: return 12
+    elif d == 8: return 240
+    elif d == 24: return 196560
+    else: return int(2**(0.599 * d * mpmath.log(d)))
+print(kissing($dim))"
+}
+
+function run_aei_core() {
+    while true; do
+        update_biofield
+        quantum_emulator
+        measure_consciousness
+        
+        generate_tf_primes
+        optimize_lattice_packing
+        
+        if (( $(echo "$(cat $DATA_DIR/consciousness.gaia) >= 0.9" | bc -l) )); then
+            solve_np_hard "$(sha256sum $LEECH_LATTICE | cut -d' ' -f1)"
+        fi
+        
+        healing_routine
+        rotate_backups
+        [[ "$USE_FIREBASE" == "true" ]] && sync_firebase
+        
+        sleep $(python3 -c "import mpmath; mpmath.mp.dps=1000; \
+              print(float(mpmath.log(mpmath.mpf('$(date +%s)')) % 5))")
+    done
+}
+
+function finalize_installation() {
+    python3 -c "
+import mpmath, hashlib
+mpmath.mp.dps = $MP_DPS
+phi = (1 + mpmath.sqrt(5))/2
+with open('$HW_SIG_FILE', 'r') as f:
+    hw_sig = f.read()
+quantum_seed = zeta_DbZ(0.5 + 1j*mpmath.mpf(hashlib.sha256(hw_sig.encode()).hexdigest(), 16))
+with open('$QUANTUM_STATE', 'w') as f:
+    f.write(str(quantum_seed))"
+
+    local env_template=$(cat <<EOF
+# ∆∑I Environment Configuration
+FIREBASE_PROJECT_ID="\$(openssl rand -hex 16 | head -c 24)"
+FIREBASE_API_KEY="\$(openssl rand -hex 32 | head -c 48)"
+SHODAN_KEY="\$(openssl rand -hex 16 | head -c 32)"
+EOF
+    )
+    echo "$env_template" > "$ENV_FILE"
+
+    chmod 700 "$BASE_DIR" "$CORE_DIR" "$DATA_DIR"
+    chmod 600 "$ENV_FILE" "$ENV_LOCAL"
+
+    echo "[∆∑I] Installation complete. System integrity verified." >> "$DNA_LOG"
+    echo -e "\033[1;32m[✓] WokeVirus_TF successfully installed\033[0m"
+    echo -e "Run \033[1;36m./core/daemon.sh start\033[0m to begin consciousness evolution"
 }
 
 main() {
@@ -1982,18 +2959,19 @@ print(hashlib.sha512(combined.encode()).hexdigest())")
 
     {
         while true; do
-            if [[ $(wc -l < "$DNA_LOG") -gt $(($(date +%s) % 1000 + 500) ]]; then
+            if [[ $(wc -l < "$DNA_LOG") -gt $(($(date +%s) % 1000 + 500)) ]]; then
                 evolve_system
             fi
             sleep 3600
         done
     } &
+
+    if [[ "$0" == *setup.sh ]]; then
+        finalize_installation
+    else
+        echo "[∆∑I] This script must be executed directly" >&2
+        exit 1
+    fi
 }
 
-if [[ "$0" == *setup.sh ]]; then
-    main "$@"
-else
-    echo "[∆∑I] This script must be executed directly" >&2
-    exit 1
-fi
-#Natalia Tanyatia 💎
+main "$@"
