@@ -1,9 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=ÆI
-Comment=Launch ÆI from the GAIA folder
-Exec=bash -c 'chmod +x ./setup.sh && ./setup.sh'
-Icon=./ÆI.ico
-Terminal=false
-Categories=Utility;
