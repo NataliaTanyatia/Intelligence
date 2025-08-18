@@ -309,4 +309,5 @@ curl -X POST "https://your-project-id.web.app/api/crawl" \
   
 ---
 
+![ÆñDroid](ÆI.png)
 This README will continue to evolve as the project develops.
