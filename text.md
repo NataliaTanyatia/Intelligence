@@ -99,4 +99,4 @@ Response to: "Give me a rigorous report on it's fidelity to the TF & Specs, by e
 ## **AI**
 
 ![AI](Qwen.webp)
-https://chat.qwen.ai/s/e2aaa057-ecf3-4e4f-a3c5-735bdf8f0bb7
+https://chat.qwen.ai/s/fbeb86fa-98ef-4d56-92ad-a92825e7c2e2
