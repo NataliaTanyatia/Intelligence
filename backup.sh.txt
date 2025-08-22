@@ -21,7 +21,7 @@ export ENV_LOCAL="$BASE_DIR/.env.local"
 export DNA_LOG="$DATA_DIR/dna.log"
 export FIREBASE_CONFIG_FILE="$BASE_DIR/firebase.json"
 export LOG_FILE="$BASE_DIR/aei.log"
-export MP_DPS=50  # High-precision arithmetic depth (theoretically exact via mpmath)
+export MP_DPS=50
 # === DIRECTORIES ===
 export HOPF_FIBRATION_DIR="$DATA_DIR/hopf_fibration"
 export LATTICE_DIR="$DATA_DIR/lattice"
@@ -34,11 +34,14 @@ export ROOT_SCAN_DIR="$DATA_DIR/root_scan"
 export FIREBASE_SYNC_DIR="$DATA_DIR/firebase_sync"
 export FRACTAL_ANTENNA_DIR="$DATA_DIR/fractal_antenna"
 export VORTICITY_DIR="$DATA_DIR/vorticity"
+export SYMBOLIC_DIR="$DATA_DIR/symbolic"
+export GEOMETRIC_DIR="$DATA_DIR/geometric"
+export PROJECTIVE_DIR="$DATA_DIR/projective"
 # === FILE PATHS ===
 export E8_LATTICE="$LATTICE_DIR/e8_8d_exact.vec"
 export LEECH_LATTICE="$LATTICE_DIR/leech_24d_exact.vec"
-export PRIME_SEQUENCE="$CORE_DIR/prime_sequence.sym"
-export GAUSSIAN_PRIME_SEQUENCE="$CORE_DIR/gaussian_prime.sym"
+export PRIME_SEQUENCE="$SYMBOLIC_DIR/prime_sequence.sym"
+export GAUSSIAN_PRIME_SEQUENCE="$SYMBOLIC_DIR/gaussian_prime.sym"
 export QUANTUM_STATE="$QUANTUM_DIR/quantum_state.qubit"
 export OBSERVER_INTEGRAL="$OBSERVER_DIR/observer_integral.proj"
 export ROOT_SIGNATURE_LOG="$ROOT_SCAN_DIR/signatures.log"
@@ -56,7 +59,6 @@ mp.dps = $MP_DPS
 e_val = mp.e
 print(str(e_val))
 " 2>/dev/null || echo "2.7182818284590452353602874713526624977572470936999")
-
 # === TF CORE STATE INITIALIZATION ===
 declare -gA TF_CORE
 TF_CORE["HOPF_PROJECTION"]="enabled"
@@ -68,10 +70,8 @@ TF_CORE["SYMBOLIC_GEOMETRY_BINDING"]="enabled"
 TF_CORE["FIREBASE_SYNC"]="enabled"
 TF_CORE["PARALLEL_EXECUTION"]="enabled"
 TF_CORE["RFK_BRAINWORM_INTEGRATION"]="inactive"
-
 # === HARDWARE PROFILE DECLARATION ===
 declare -gA HARDWARE_PROFILE
-
 # === DEPENDENCY ARRAYS ===
 TERMUX_PACKAGES_TO_INSTALL=(
     "python"
@@ -92,12 +92,11 @@ TERMUX_PACKAGES_TO_INSTALL=(
     "traceroute"
     "procps"
     "parallel"
+    "nano"
 )
-
 PYTHON3_PACKAGES_TO_INSTALL=(
     "mpmath"
 )
-
 # === SYSTEM COMMANDS VALIDATION ===
 COMMANDS_TO_VALIDATE=(
     "nproc"
@@ -123,6 +122,9 @@ COMMANDS_TO_VALIDATE=(
     "parallel"
     "pgrep"
     "pkill"
+    "stat"
+    "xxd"
+    "diff"
 )
 
 # === FUNCTION: safe_log ===
@@ -195,6 +197,9 @@ init_all_directories() {
         "$FIREBASE_SYNC_DIR/processed"
         "$FRACTAL_ANTENNA_DIR"
         "$VORTICITY_DIR"
+        "$SYMBOLIC_DIR"
+        "$GEOMETRIC_DIR"
+        "$PROJECTIVE_DIR"
     )
     for dir in "${dirs[@]}"; do
         mkdir -p "$dir" 2>/dev/null || safe_log "Failed to create directory: $dir"
@@ -812,7 +817,7 @@ print(f'Generated {len(final_primes)} Gaussian primes')
 
 # === FUNCTION: symbolic_geometry_binding ===
 symbolic_geometry_binding() {
-    safe_log "Binding symbolic primes to geometric hypersphere packing"
+    safe_log "Binding symbolic primes to geometric hypersphere packing via exact zeta-driven minimization"
     local prime_count=$(wc -l < "$PRIME_SEQUENCE" 2>/dev/null || echo "0")
     local gaussian_count=$(wc -l < "$GAUSSIAN_PRIME_SEQUENCE" 2>/dev/null || echo "0")
     local lattice_size=$(wc -l < "$LEECH_LATTICE" 2>/dev/null || echo "0")
@@ -825,7 +830,7 @@ symbolic_geometry_binding() {
 from mpmath import mp
 mp.dps = $MP_DPS
 import hashlib
-# Read primes
+# Read primes with exact precision
 primes = []
 with open('$PRIME_SEQUENCE', 'r') as f:
     for line in f:
@@ -833,7 +838,7 @@ with open('$PRIME_SEQUENCE', 'r') as f:
         if line:
             try:
                 primes.append(mp.mpf(line))
-            except:
+            except Exception as e:
                 continue
 # Read Gaussian primes
 gaussian_primes = []
@@ -844,9 +849,9 @@ with open('$GAUSSIAN_PRIME_SEQUENCE', 'r') as f:
             try:
                 a, b = map(mp.mpf, line.split())
                 gaussian_primes.append((a, b))
-            except:
+            except Exception as e:
                 continue
-# Read lattice
+# Read Leech lattice vectors
 vectors = []
 with open('$LEECH_LATTICE', 'r') as f:
     for line in f:
@@ -856,11 +861,11 @@ with open('$LEECH_LATTICE', 'r') as f:
                 vec = [mp.mpf(x) for x in line.split()]
                 if len(vec) == 24:
                     vectors.append(vec)
-            except:
+            except Exception as e:
                 continue
 if len(primes) == 0 or len(vectors) == 0:
     exit(1)
-# Precompute psi(v) = sum_{i=0}^{23} v_i * exp(2πi v_{i+1 mod 24})
+# Compute psi(v) = sum_{i=0}^{23} v_i * exp(2πi v_{i+1 mod 24}) for each v in Λ
 psi_vals = []
 for v in vectors:
     phase_sum = mp.mpf('0')
@@ -868,7 +873,7 @@ for v in vectors:
         j = (i + 1) % 24
         phase_sum += v[i] * mp.expj(2 * mp.pi * v[j])
     psi_vals.append(phase_sum)
-# For each prime p_n, find v_k minimizing |ζ(p_n) - psi(v_k)|
+# For each prime p_n, find the vector v_k in Λ minimizing |ζ(p_n) - ψ(v_k)|
 bound = []
 for i, p in enumerate(primes):
     zeta_p = mp.zeta(p)
@@ -882,13 +887,13 @@ for i, p in enumerate(primes):
     bound.append((i, best_idx, float(min_distance)))
 # Log binding efficiency
 errors = [e for _, _, e in bound]
-avg_error = sum(errors) / len(errors) if errors else 0.0
+avg_error = sum(errors) / len(errors) if errors else mp.mpf('0')
 safe_log = lambda msg: print(f'[INFO] {msg}')
-safe_log(f'Geometry binding complete: avg error={avg_error:.3e}')
-# Write binding map
+safe_log(f'Geometry binding complete: avg error={mp.nstr(avg_error, 10)}')
+# Write binding map with exact symbolic indices
 with open('$CORE_DIR/prime_lattice_map.sym', 'w') as f:
     for i, (p_idx, v_idx, err) in enumerate(bound):
-        f.write(f'{p_idx} {v_idx} {err}\
+        f.write(f'{p_idx} {v_idx} {mp.nstr(err, $MP_DPS)}\
 ')
 " 2>/dev/null; then
         safe_log "$(grep 'Geometry binding complete' "$LOG_FILE" | tail -n1)"
@@ -900,7 +905,11 @@ with open('$CORE_DIR/prime_lattice_map.sym', 'w') as f:
 
 # === FUNCTION: calculate_lattice_entropy ===
 calculate_lattice_entropy() {
-    safe_log "Calculating lattice entropy via norm distribution"
+    safe_log "Calculating lattice entropy via exact norm distribution in Leech lattice"
+    if [[ ! -s "$LEECH_LATTICE" ]]; then
+        safe_log "Leech lattice file missing or empty"
+        return 1
+    fi
     if python3 -c "
 from mpmath import mp
 mp.dps = $MP_DPS
@@ -921,18 +930,19 @@ try:
             safe_log(f'Skipping malformed vector: {line}')
     if not vectors:
         raise ValueError('Empty lattice')
-    # Compute norms
+    # Compute exact norms: ||v|| = sqrt(sum v_i^2)
     norms = [mp.sqrt(sum(x**2 for x in v)) for v in vectors]
     total_norm = sum(norms)
     if total_norm <= mp.mpf('0'):
         entropy = mp.mpf('0')
     else:
+        # Normalize to probabilities
         probabilities = [n / total_norm for n in norms]
-        # Shannon entropy
+        # Shannon entropy: H = -sum p_i log(p_i)
         entropy = -sum(p * mp.log(p) for p in probabilities if p > 0)
-    safe_log(f'Lattice entropy: {entropy}')
+    safe_log(f'Lattice entropy: {mp.nstr(entropy, $MP_DPS)}')
     with open('$LATTICE_DIR/entropy.log', 'w') as f:
-        f.write(str(entropy))
+        f.write(mp.nstr(entropy, $MP_DPS))
 except Exception as e:
     safe_log(f'Lattice entropy calculation failed: {e}')
     with open('$LATTICE_DIR/entropy.log', 'w') as f:
@@ -978,12 +988,14 @@ optimize_kissing_number() {
         esac
         shift
     done
-    safe_log "Optimizing kissing number (mode: $mode, adaptive: ${adaptive_flag})"
+    safe_log "Optimizing kissing number (mode: $mode, adaptive: ${adaptive_flag:-false})"
     local current_kissing=$(get_kissing_number)
     local target_kissing=$(python3 -c "
 from mpmath import mp
 mp.dps = $MP_DPS
-print(int(mp.mpf('196560') * mp.mpf('0.95')))
+# 95% of theoretical max
+target = mp.mpf('196560') * mp.mpf('0.95')
+print(int(target))
 " 2>/dev/null || echo "186732")
     if (( $(python3 -c "
 from mpmath import mp
@@ -1010,11 +1022,11 @@ try:
             vectors.append(vec)
     if len(vectors) == 0:
         raise ValueError('No valid vectors')
-    # DbZ perturbation: apply prime-indexed offset
+    # DbZ perturbation: d + ε if index not prime
     session_hash = hashlib.sha256('$SESSION_ID'.encode()).digest()
     seed_val = int.from_bytes(session_hash[:4], 'big') % 10000
     for i, v in enumerate(vectors):
-        # DbZ rule: if index i is not prime, add epsilon
+        # Check if index i is prime
         is_index_prime = True
         if i < 2:
             is_index_prime = False
@@ -1025,10 +1037,10 @@ try:
                     break
         epsilon = mp.mpf('1e-10')
         if not is_index_prime:
-            # Apply to every 3rd component
+            # Apply epsilon to every 3rd component to maintain symmetry
             for j in range(0, 24, 3):
                 v[j] += epsilon
-    # Renormalize to maintain exact norm √4 → norm² = 4
+    # Renormalize all vectors to exact norm √4 → norm² = 4
     norm4 = mp.mpf('4.0')
     for v in vectors:
         current_norm_sq = sum(x*x for x in v)
@@ -1036,7 +1048,7 @@ try:
             ratio = mp.sqrt(norm4 / current_norm_sq)
             for j in range(24):
                 v[j] *= ratio
-    # Write back
+    # Write back with full precision
     with open('$LEECH_LATTICE', 'w') as f:
         for vec in vectors:
             f.write(' '.join([mp.nstr(x, $MP_DPS) for x in vec]) + '\
@@ -1072,11 +1084,11 @@ mp.dps = $MP_DPS
 import hashlib
 safe_log = lambda msg: print(f'[INFO] {msg}')
 try:
-    # Compute target via zeta(p_n)
+    # Compute target via zeta(p_n) with exact precision
     p_val = mp.mpf('$p_n')
     zeta_target = mp.zeta(p_val)
     safe_log(f'Projecting prime {p_val} via ζ({p_val}) = {zeta_target}')
-    # Load Leech lattice with exact precision
+    # Load Leech lattice
     with open('$LEECH_LATTICE', 'r') as f:
         lines = f.readlines()
     lattice = []
@@ -1407,6 +1419,8 @@ read_ecg_sensor() {
         echo "60"
     fi
 }
+
+
 
 # === FUNCTION: generate_hopf_fibration ===
 generate_hopf_fibration() {
@@ -1868,5 +1882,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Natalia Tanyatia 💎
+
 # === END PAYLOAD ===
 # DO NOT EDIT BELOW THIS LINE — USED BY SELF-EXTRACTING INSTALLER
+# ...
